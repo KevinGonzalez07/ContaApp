@@ -1,4 +1,10 @@
 import { useState, useEffect, useMemo } from "react";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  "https://ujuikoviyyyagxekszuz.supabase.co",
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVqdWlrb3ZpeXl5YWd4ZWtzenV6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2Nzk3NzYsImV4cCI6MjA5MTI1NTc3Nn0.9ERmePJ7moJOKlb2OMRxv4irKp70zFcI9umfxWle8r4"
+);
 
 const COLORS = {
   primary: "#1B3A5C",
@@ -18,29 +24,6 @@ const COLORS = {
   textMuted: "#6B6B67",
 };
 
-const DEMO_USER = { email: "contadora@despacho.mx", password: "demo123", name: "Lic. María González" };
-
-const INITIAL_CLIENTS = [
-  { id: 1, name: "Construcciones Regia SA de CV", rfc: "CRE980412HJ3", email: "admin@construregia.mx", phone: "8112345678", type: "moral", status: "activo" },
-  { id: 2, name: "Ramírez Treviño Juan Carlos", rfc: "RATJ850601KL8", email: "jc.ramirez@gmail.com", phone: "8123456789", type: "fisica", status: "activo" },
-  { id: 3, name: "Distribuidora El Norte SC", rfc: "DEN010305PQ2", email: "contabilidad@elnorte.mx", phone: "8134567890", type: "moral", status: "activo" },
-  { id: 4, name: "López Garza Sofía", rfc: "LOGS920314AB5", email: "sofia.lopez@hotmail.com", phone: "8145678901", type: "fisica", status: "activo" },
-  { id: 5, name: "Servicios Industriales MTY SA", rfc: "SIM030820XY9", email: "finanzas@simty.mx", phone: "8156789012", type: "moral", status: "inactivo" },
-];
-
-const today = new Date();
-const fmt = (d) => d.toISOString().split("T")[0];
-const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return fmt(x); };
-
-const INITIAL_PROCESSES = [
-  { id: 1, clientId: 1, type: "declaracion_mensual", title: "Declaración Mensual IVA - Marzo", startDate: fmt(today), dueDate: addDays(today, 3), status: "pendiente", notes: "Verificar facturas del trimestre", reminder: 2 },
-  { id: 2, clientId: 2, type: "declaracion_anual", title: "Declaración Anual ISR 2024", startDate: addDays(today, -10), dueDate: addDays(today, 1), status: "en_proceso", notes: "Pendiente comprobante de gastos médicos", reminder: 1 },
-  { id: 3, clientId: 3, type: "tramite_fiscal", title: "Alta en RFC - Cambio de Domicilio", startDate: addDays(today, -5), dueDate: addDays(today, -2), status: "pendiente", notes: "Documentos listos en oficina", reminder: 3 },
-  { id: 4, clientId: 4, type: "declaracion_mensual", title: "Declaración Mensual Marzo", startDate: addDays(today, -3), dueDate: addDays(today, 12), status: "completado", notes: "Enviada sin observaciones", reminder: 2 },
-  { id: 5, clientId: 1, type: "declaracion_anual", title: "Declaración Anual ISR 2024", startDate: addDays(today, -15), dueDate: addDays(today, 8), status: "en_proceso", notes: "En revisión con el cliente", reminder: 3 },
-  { id: 6, clientId: 5, type: "tramite_fiscal", title: "Baja en SAT", startDate: addDays(today, -20), dueDate: addDays(today, -5), status: "completado", notes: "Trámite concluido", reminder: 2 },
-];
-
 const PROCESS_TYPES = {
   declaracion_mensual: "Declaración Mensual",
   declaracion_anual: "Declaración Anual",
@@ -54,8 +37,11 @@ const STATUS_CONFIG = {
   completado: { label: "Completado", bg: COLORS.accentLight, color: "#0F6E56" },
 };
 
+const fmt = (d) => d instanceof Date ? d.toISOString().split("T")[0] : d;
+const today = new Date();
+
 function Badge({ status }) {
-  const c = STATUS_CONFIG[status];
+  const c = STATUS_CONFIG[status] || STATUS_CONFIG.pendiente;
   return (
     <span style={{ background: c.bg, color: c.color, padding: "3px 10px", borderRadius: 20, fontSize: 12, fontWeight: 500, whiteSpace: "nowrap" }}>
       {c.label}
@@ -67,7 +53,7 @@ function Icon({ name, size = 18, color = "currentColor" }) {
   const icons = {
     dashboard: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>,
     clients: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
-    processes: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10,9 9,9 8,9"/></svg>,
+    processes: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>,
     reminders: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>,
     logout: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16,17 21,12 16,7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>,
     plus: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
@@ -82,8 +68,20 @@ function Icon({ name, size = 18, color = "currentColor" }) {
     history: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8"><polyline points="1,4 1,10 7,10"/><path d="M3.51 15a9 9 0 1 0 .49-4.51"/></svg>,
     calendar: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
     mail: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>,
+    spinner: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>,
   };
   return icons[name] || null;
+}
+
+function Spinner() {
+  return (
+    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: 200 }}>
+      <div style={{ animation: "spin 1s linear infinite" }}>
+        <Icon name="spinner" size={32} color={COLORS.primary} />
+      </div>
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
 }
 
 function Modal({ title, onClose, children }) {
@@ -103,7 +101,9 @@ function Modal({ title, onClose, children }) {
 function FormField({ label, children, required }) {
   return (
     <div style={{ marginBottom: 16 }}>
-      <label style={{ display: "block", fontSize: 13, fontWeight: 500, color: COLORS.textMuted, marginBottom: 6 }}>{label}{required && <span style={{ color: COLORS.danger }}> *</span>}</label>
+      <label style={{ display: "block", fontSize: 13, fontWeight: 500, color: COLORS.textMuted, marginBottom: 6 }}>
+        {label}{required && <span style={{ color: COLORS.danger }}> *</span>}
+      </label>
       {children}
     </div>
   );
@@ -113,28 +113,41 @@ const inputStyle = { width: "100%", padding: "9px 12px", border: `1px solid ${CO
 const btnPrimary = { background: COLORS.primary, color: "#fff", border: "none", borderRadius: 8, padding: "10px 20px", fontSize: 14, fontWeight: 500, cursor: "pointer" };
 const btnSecondary = { background: "none", color: COLORS.gray, border: `1px solid ${COLORS.border}`, borderRadius: 8, padding: "10px 20px", fontSize: 14, cursor: "pointer" };
 
-function LoginScreen({ onLogin }) {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+// ─── AUTH SCREEN ───────────────────────────────────────────────────────────────
+function AuthScreen({ onAuth }) {
+  const [mode, setMode] = useState("login"); // login | register
+  const [form, setForm] = useState({ email: "", password: "", name: "", despacho: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = () => {
-    setLoading(true);
+  const handleSubmit = async () => {
     setError("");
-    setTimeout(() => {
-      if (email === DEMO_USER.email && password === DEMO_USER.password) {
-        onLogin(DEMO_USER);
+    if (!form.email || !form.password) { setError("Correo y contraseña son obligatorios."); return; }
+    if (mode === "register" && (!form.name || !form.despacho)) { setError("Todos los campos son obligatorios."); return; }
+    setLoading(true);
+    try {
+      if (mode === "login") {
+        const { data, error: e } = await supabase.auth.signInWithPassword({ email: form.email, password: form.password });
+        if (e) throw e;
+        const { data: profile } = await supabase.from("profiles").select("*").eq("id", data.user.id).single();
+        onAuth(data.user, profile);
       } else {
-        setError("Correo o contraseña incorrectos. Usa: contadora@despacho.mx / demo123");
+        const { data, error: e } = await supabase.auth.signUp({ email: form.email, password: form.password });
+        if (e) throw e;
+        await supabase.from("profiles").insert({ id: data.user.id, name: form.name, despacho: form.despacho, email: form.email });
+        const profile = { name: form.name, despacho: form.despacho, email: form.email };
+        onAuth(data.user, profile);
       }
-      setLoading(false);
-    }, 600);
+    } catch (e) {
+      setError(e.message || "Ocurrió un error, intenta de nuevo.");
+    }
+    setLoading(false);
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: COLORS.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Georgia', serif", padding: 20 }}>
+    <div style={{ minHeight: "100vh", background: COLORS.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Segoe UI', system-ui, sans-serif", padding: 20 }}>
       <div style={{ display: "flex", width: "100%", maxWidth: 900, background: COLORS.white, borderRadius: 16, overflow: "hidden", boxShadow: "0 4px 40px rgba(0,0,0,0.1)" }}>
+        {/* Panel izquierdo */}
         <div style={{ flex: 1, background: COLORS.primary, padding: "60px 48px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
           <div style={{ width: 48, height: 48, background: COLORS.accent, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 32 }}>
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
@@ -152,27 +165,56 @@ function LoginScreen({ onLogin }) {
             ))}
           </div>
         </div>
+
+        {/* Panel derecho */}
         <div style={{ flex: 1, padding: "60px 48px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
-          <h2 style={{ fontSize: 24, fontWeight: 600, color: COLORS.text, margin: "0 0 8px", fontFamily: "'Georgia', serif" }}>Iniciar sesión</h2>
-          <p style={{ color: COLORS.textMuted, fontSize: 14, margin: "0 0 36px" }}>Accede a tu panel de control</p>
+          <h2 style={{ fontSize: 24, fontWeight: 600, color: COLORS.text, margin: "0 0 8px", fontFamily: "'Georgia', serif" }}>
+            {mode === "login" ? "Iniciar sesión" : "Crear cuenta"}
+          </h2>
+          <p style={{ color: COLORS.textMuted, fontSize: 14, margin: "0 0 32px" }}>
+            {mode === "login" ? "Accede a tu panel de control" : "Registra tu despacho contable"}
+          </p>
+
+          {mode === "register" && (
+            <>
+              <FormField label="Nombre completo" required>
+                <input style={inputStyle} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Lic. María González" />
+              </FormField>
+              <FormField label="Nombre del despacho" required>
+                <input style={inputStyle} value={form.despacho} onChange={e => setForm(f => ({ ...f, despacho: e.target.value }))} placeholder="Despacho Contable González" />
+              </FormField>
+            </>
+          )}
+
           <FormField label="Correo electrónico" required>
-            <input style={inputStyle} type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="correo@ejemplo.mx" onKeyDown={e => e.key === "Enter" && handleLogin()} />
+            <input style={inputStyle} type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="correo@ejemplo.mx" onKeyDown={e => e.key === "Enter" && handleSubmit()} />
           </FormField>
           <FormField label="Contraseña" required>
-            <input style={inputStyle} type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" onKeyDown={e => e.key === "Enter" && handleLogin()} />
+            <input style={inputStyle} type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="Mínimo 6 caracteres" onKeyDown={e => e.key === "Enter" && handleSubmit()} />
           </FormField>
-          {error && <p style={{ color: COLORS.danger, fontSize: 13, margin: "-8px 0 16px", background: COLORS.dangerLight, padding: "10px 12px", borderRadius: 8 }}>{error}</p>}
-          <button onClick={handleLogin} disabled={loading} style={{ ...btnPrimary, width: "100%", padding: "13px 20px", fontSize: 15, marginTop: 8, opacity: loading ? 0.7 : 1 }}>
-            {loading ? "Verificando..." : "Entrar"}
+
+          {error && (
+            <p style={{ color: COLORS.danger, fontSize: 13, margin: "-8px 0 16px", background: COLORS.dangerLight, padding: "10px 12px", borderRadius: 8 }}>{error}</p>
+          )}
+
+          <button onClick={handleSubmit} disabled={loading} style={{ ...btnPrimary, width: "100%", padding: "13px 20px", fontSize: 15, opacity: loading ? 0.7 : 1 }}>
+            {loading ? "Procesando..." : mode === "login" ? "Entrar" : "Crear cuenta"}
           </button>
-          <p style={{ textAlign: "center", color: COLORS.textMuted, fontSize: 12, marginTop: 20 }}>Demo: contadora@despacho.mx · demo123</p>
+
+          <p style={{ textAlign: "center", fontSize: 14, color: COLORS.textMuted, marginTop: 20 }}>
+            {mode === "login" ? "¿No tienes cuenta?" : "¿Ya tienes cuenta?"}{" "}
+            <button onClick={() => { setMode(mode === "login" ? "register" : "login"); setError(""); }} style={{ background: "none", border: "none", color: COLORS.primary, cursor: "pointer", fontWeight: 600, fontSize: 14 }}>
+              {mode === "login" ? "Regístrate" : "Inicia sesión"}
+            </button>
+          </p>
         </div>
       </div>
     </div>
   );
 }
 
-function Sidebar({ active, setActive, user, onLogout }) {
+// ─── SIDEBAR ──────────────────────────────────────────────────────────────────
+function Sidebar({ active, setActive, profile, onLogout }) {
   const navItems = [
     { id: "dashboard", label: "Dashboard", icon: "dashboard" },
     { id: "clients", label: "Clientes", icon: "clients" },
@@ -192,7 +234,7 @@ function Sidebar({ active, setActive, user, onLogout }) {
       </div>
       <div style={{ padding: "8px 12px", flex: 1 }}>
         {navItems.map(item => (
-          <button key={item.id} onClick={() => setActive(item.id)} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "10px 12px", marginBottom: 2, borderRadius: 8, border: "none", cursor: "pointer", background: active === item.id ? "rgba(255,255,255,0.12)" : "none", color: active === item.id ? "#fff" : "rgba(255,255,255,0.6)", fontSize: 14, fontWeight: active === item.id ? 500 : 400, transition: "all 0.15s", textAlign: "left" }}>
+          <button key={item.id} onClick={() => setActive(item.id)} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "10px 12px", marginBottom: 2, borderRadius: 8, border: "none", cursor: "pointer", background: active === item.id ? "rgba(255,255,255,0.12)" : "none", color: active === item.id ? "#fff" : "rgba(255,255,255,0.6)", fontSize: 14, fontWeight: active === item.id ? 500 : 400, textAlign: "left" }}>
             <Icon name={item.icon} size={17} color={active === item.id ? "#fff" : "rgba(255,255,255,0.6)"} />
             {item.label}
           </button>
@@ -200,8 +242,8 @@ function Sidebar({ active, setActive, user, onLogout }) {
       </div>
       <div style={{ padding: "16px 12px 20px", borderTop: "1px solid rgba(255,255,255,0.1)" }}>
         <div style={{ padding: "10px 12px", marginBottom: 8 }}>
-          <p style={{ color: "#fff", fontSize: 13, fontWeight: 500, margin: "0 0 2px" }}>{user.name}</p>
-          <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 12, margin: 0 }}>{user.email}</p>
+          <p style={{ color: "#fff", fontSize: 13, fontWeight: 500, margin: "0 0 2px" }}>{profile?.name}</p>
+          <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 12, margin: 0 }}>{profile?.despacho}</p>
         </div>
         <button onClick={onLogout} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "10px 12px", borderRadius: 8, border: "none", cursor: "pointer", background: "none", color: "rgba(255,255,255,0.5)", fontSize: 14 }}>
           <Icon name="logout" size={17} color="rgba(255,255,255,0.5)" /> Cerrar sesión
@@ -211,6 +253,7 @@ function Sidebar({ active, setActive, user, onLogout }) {
   );
 }
 
+// ─── STAT CARD ────────────────────────────────────────────────────────────────
 function StatCard({ label, value, icon, color = COLORS.primary, sub }) {
   return (
     <div style={{ background: COLORS.white, borderRadius: 12, padding: "20px 22px", border: `1px solid ${COLORS.border}`, display: "flex", alignItems: "flex-start", gap: 16 }}>
@@ -226,15 +269,14 @@ function StatCard({ label, value, icon, color = COLORS.primary, sub }) {
   );
 }
 
+// ─── DASHBOARD ────────────────────────────────────────────────────────────────
 function DashboardView({ clients, processes }) {
   const now = new Date();
   const active = clients.filter(c => c.status === "activo").length;
-  const overdue = processes.filter(p => p.status !== "completado" && new Date(p.dueDate) < now);
-  const dueSoon = processes.filter(p => p.status !== "completado" && new Date(p.dueDate) >= now && new Date(p.dueDate) <= new Date(now.getTime() + 7 * 86400000));
+  const overdue = processes.filter(p => p.status !== "completado" && new Date(p.due_date) < now);
+  const dueSoon = processes.filter(p => p.status !== "completado" && new Date(p.due_date) >= now && new Date(p.due_date) <= new Date(now.getTime() + 7 * 86400000));
   const inProcess = processes.filter(p => p.status === "en_proceso").length;
-
   const clientMap = Object.fromEntries(clients.map(c => [c.id, c]));
-
   const daysLeft = (d) => Math.ceil((new Date(d) - now) / 86400000);
 
   return (
@@ -246,57 +288,52 @@ function DashboardView({ clients, processes }) {
         <StatCard label="Vencen pronto" value={dueSoon.length} icon="clock" color={COLORS.warning} sub="próximos 7 días" />
         <StatCard label="Atrasados" value={overdue.length} icon="alert" color={COLORS.danger} />
       </div>
-
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
         <div style={{ background: COLORS.white, borderRadius: 12, border: `1px solid ${COLORS.border}`, overflow: "hidden" }}>
           <div style={{ padding: "16px 20px", borderBottom: `1px solid ${COLORS.border}`, display: "flex", alignItems: "center", gap: 8 }}>
             <Icon name="alert" size={16} color={COLORS.danger} />
             <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: COLORS.text }}>Procesos atrasados</h3>
           </div>
-          <div>
-            {overdue.length === 0 ? (
-              <p style={{ padding: "20px", color: COLORS.textMuted, fontSize: 14, textAlign: "center" }}>Sin atrasos</p>
-            ) : overdue.slice(0, 5).map(p => (
-              <div key={p.id} style={{ padding: "12px 20px", borderBottom: `1px solid ${COLORS.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div>
-                  <p style={{ margin: "0 0 2px", fontSize: 14, fontWeight: 500, color: COLORS.text }}>{p.title}</p>
-                  <p style={{ margin: 0, fontSize: 12, color: COLORS.textMuted }}>{clientMap[p.clientId]?.name}</p>
-                </div>
-                <span style={{ background: COLORS.dangerLight, color: COLORS.danger, fontSize: 12, padding: "3px 8px", borderRadius: 6, whiteSpace: "nowrap" }}>
-                  {Math.abs(daysLeft(p.dueDate))}d atraso
-                </span>
+          {overdue.length === 0 ? (
+            <p style={{ padding: "20px", color: COLORS.textMuted, fontSize: 14, textAlign: "center" }}>Sin atrasos</p>
+          ) : overdue.slice(0, 5).map(p => (
+            <div key={p.id} style={{ padding: "12px 20px", borderBottom: `1px solid ${COLORS.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <p style={{ margin: "0 0 2px", fontSize: 14, fontWeight: 500, color: COLORS.text }}>{p.title}</p>
+                <p style={{ margin: 0, fontSize: 12, color: COLORS.textMuted }}>{clientMap[p.client_id]?.name}</p>
               </div>
-            ))}
-          </div>
+              <span style={{ background: COLORS.dangerLight, color: COLORS.danger, fontSize: 12, padding: "3px 8px", borderRadius: 6 }}>
+                {Math.abs(daysLeft(p.due_date))}d atraso
+              </span>
+            </div>
+          ))}
         </div>
-
         <div style={{ background: COLORS.white, borderRadius: 12, border: `1px solid ${COLORS.border}`, overflow: "hidden" }}>
           <div style={{ padding: "16px 20px", borderBottom: `1px solid ${COLORS.border}`, display: "flex", alignItems: "center", gap: 8 }}>
             <Icon name="clock" size={16} color={COLORS.warning} />
             <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: COLORS.text }}>Próximos vencimientos</h3>
           </div>
-          <div>
-            {dueSoon.length === 0 ? (
-              <p style={{ padding: "20px", color: COLORS.textMuted, fontSize: 14, textAlign: "center" }}>Sin vencimientos próximos</p>
-            ) : dueSoon.slice(0, 5).map(p => (
-              <div key={p.id} style={{ padding: "12px 20px", borderBottom: `1px solid ${COLORS.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div>
-                  <p style={{ margin: "0 0 2px", fontSize: 14, fontWeight: 500, color: COLORS.text }}>{p.title}</p>
-                  <p style={{ margin: 0, fontSize: 12, color: COLORS.textMuted }}>{clientMap[p.clientId]?.name}</p>
-                </div>
-                <span style={{ background: COLORS.warningLight, color: COLORS.warning, fontSize: 12, padding: "3px 8px", borderRadius: 6, whiteSpace: "nowrap" }}>
-                  {daysLeft(p.dueDate) === 0 ? "Hoy" : `${daysLeft(p.dueDate)}d`}
-                </span>
+          {dueSoon.length === 0 ? (
+            <p style={{ padding: "20px", color: COLORS.textMuted, fontSize: 14, textAlign: "center" }}>Sin vencimientos próximos</p>
+          ) : dueSoon.slice(0, 5).map(p => (
+            <div key={p.id} style={{ padding: "12px 20px", borderBottom: `1px solid ${COLORS.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <p style={{ margin: "0 0 2px", fontSize: 14, fontWeight: 500, color: COLORS.text }}>{p.title}</p>
+                <p style={{ margin: 0, fontSize: 12, color: COLORS.textMuted }}>{clientMap[p.client_id]?.name}</p>
               </div>
-            ))}
-          </div>
+              <span style={{ background: COLORS.warningLight, color: COLORS.warning, fontSize: 12, padding: "3px 8px", borderRadius: 6 }}>
+                {daysLeft(p.due_date) === 0 ? "Hoy" : `${daysLeft(p.due_date)}d`}
+              </span>
+            </div>
+          ))}
         </div>
       </div>
     </div>
   );
 }
 
-function ClientsView({ clients, setClients, processes }) {
+// ─── CLIENTS ──────────────────────────────────────────────────────────────────
+function ClientsView({ clients, setClients, processes, userId }) {
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
@@ -304,28 +341,38 @@ function ClientsView({ clients, setClients, processes }) {
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ name: "", rfc: "", email: "", phone: "", type: "fisica", status: "activo" });
   const [viewClient, setViewClient] = useState(null);
+  const [saving, setSaving] = useState(false);
 
   const filtered = useMemo(() => clients.filter(c => {
     const q = search.toLowerCase();
-    const matchQ = c.name.toLowerCase().includes(q) || c.rfc?.toLowerCase().includes(q) || c.email.toLowerCase().includes(q);
-    const matchType = filterType === "all" || c.type === filterType;
-    const matchStatus = filterStatus === "all" || c.status === filterStatus;
-    return matchQ && matchType && matchStatus;
+    return (c.name.toLowerCase().includes(q) || c.rfc?.toLowerCase().includes(q) || c.email?.toLowerCase().includes(q))
+      && (filterType === "all" || c.type === filterType)
+      && (filterStatus === "all" || c.status === filterStatus);
   }), [clients, search, filterType, filterStatus]);
 
   const openAdd = () => { setEditing(null); setForm({ name: "", rfc: "", email: "", phone: "", type: "fisica", status: "activo" }); setShowModal(true); };
-  const openEdit = (c) => { setEditing(c.id); setForm({ ...c }); setShowModal(true); };
-  const save = () => {
+  const openEdit = (c) => { setEditing(c); setForm({ name: c.name, rfc: c.rfc || "", email: c.email, phone: c.phone || "", type: c.type, status: c.status }); setShowModal(true); };
+
+  const save = async () => {
     if (!form.name || !form.email) return;
+    setSaving(true);
     if (editing) {
-      setClients(prev => prev.map(c => c.id === editing ? { ...c, ...form } : c));
+      const { data } = await supabase.from("clients").update({ ...form }).eq("id", editing.id).select().single();
+      setClients(prev => prev.map(c => c.id === editing.id ? data : c));
     } else {
-      setClients(prev => [...prev, { ...form, id: Date.now() }]);
+      const { data } = await supabase.from("clients").insert({ ...form, user_id: userId }).select().single();
+      setClients(prev => [...prev, data]);
     }
+    setSaving(false);
     setShowModal(false);
   };
-  const remove = (id) => setClients(prev => prev.filter(c => c.id !== id));
-  const clientProcesses = (id) => processes.filter(p => p.clientId === id);
+
+  const remove = async (id) => {
+    await supabase.from("clients").delete().eq("id", id);
+    setClients(prev => prev.filter(c => c.id !== id));
+  };
+
+  const clientProcesses = (id) => processes.filter(p => p.client_id === id);
 
   return (
     <div>
@@ -349,7 +396,6 @@ function ClientsView({ clients, setClients, processes }) {
           <option value="inactivo">Inactivo</option>
         </select>
       </div>
-
       <div style={{ background: COLORS.white, borderRadius: 12, border: `1px solid ${COLORS.border}`, overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
@@ -395,9 +441,7 @@ function ClientsView({ clients, setClients, processes }) {
                 </td>
               </tr>
             ))}
-            {filtered.length === 0 && (
-              <tr><td colSpan={7} style={{ padding: "40px", textAlign: "center", color: COLORS.textMuted, fontSize: 14 }}>Sin resultados</td></tr>
-            )}
+            {filtered.length === 0 && <tr><td colSpan={7} style={{ padding: "40px", textAlign: "center", color: COLORS.textMuted, fontSize: 14 }}>Sin resultados</td></tr>}
           </tbody>
         </table>
       </div>
@@ -434,7 +478,7 @@ function ClientsView({ clients, setClients, processes }) {
           </div>
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
             <button onClick={() => setShowModal(false)} style={btnSecondary}>Cancelar</button>
-            <button onClick={save} style={btnPrimary}>Guardar</button>
+            <button onClick={save} disabled={saving} style={{ ...btnPrimary, opacity: saving ? 0.7 : 1 }}>{saving ? "Guardando..." : "Guardar"}</button>
           </div>
         </Modal>
       )}
@@ -452,7 +496,7 @@ function ClientsView({ clients, setClients, processes }) {
               </span>
             </div>
           </div>
-          {[["RFC", viewClient.rfc || "No registrado"], ["Correo", viewClient.email], ["Teléfono", viewClient.phone], ["Estado", viewClient.status === "activo" ? "Activo" : "Inactivo"]].map(([k, v]) => (
+          {[["RFC", viewClient.rfc || "No registrado"], ["Correo", viewClient.email], ["Teléfono", viewClient.phone || "—"], ["Estado", viewClient.status === "activo" ? "Activo" : "Inactivo"]].map(([k, v]) => (
             <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: `1px solid ${COLORS.border}` }}>
               <span style={{ fontSize: 13, color: COLORS.textMuted }}>{k}</span>
               <span style={{ fontSize: 13, fontWeight: 500, color: COLORS.text }}>{v}</span>
@@ -474,39 +518,53 @@ function ClientsView({ clients, setClients, processes }) {
   );
 }
 
-function ProcessesView({ processes, setProcesses, clients }) {
+// ─── PROCESSES ────────────────────────────────────────────────────────────────
+function ProcessesView({ processes, setProcesses, clients, userId }) {
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterType, setFilterType] = useState("all");
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(null);
-  const emptyForm = { clientId: clients[0]?.id || "", type: "declaracion_mensual", title: "", startDate: fmt(today), dueDate: "", status: "pendiente", notes: "", reminder: 3 };
+  const [saving, setSaving] = useState(false);
+  const emptyForm = { client_id: clients[0]?.id || "", type: "declaracion_mensual", title: "", start_date: fmt(today), due_date: "", status: "pendiente", notes: "", reminder: 3 };
   const [form, setForm] = useState(emptyForm);
-
   const clientMap = Object.fromEntries(clients.map(c => [c.id, c]));
 
   const filtered = useMemo(() => processes.filter(p => {
     const q = search.toLowerCase();
-    const client = clientMap[p.clientId];
-    const matchQ = p.title.toLowerCase().includes(q) || client?.name.toLowerCase().includes(q);
-    const matchStatus = filterStatus === "all" || p.status === filterStatus;
-    const matchType = filterType === "all" || p.type === filterType;
-    return matchQ && matchStatus && matchType;
-  }), [processes, search, filterStatus, filterType, clientMap]);
+    const client = clientMap[p.client_id];
+    return (p.title.toLowerCase().includes(q) || client?.name.toLowerCase().includes(q))
+      && (filterStatus === "all" || p.status === filterStatus)
+      && (filterType === "all" || p.type === filterType);
+  }), [processes, search, filterStatus, filterType]);
 
-  const openAdd = () => { setEditing(null); setForm(emptyForm); setShowModal(true); };
-  const openEdit = (p) => { setEditing(p.id); setForm({ ...p }); setShowModal(true); };
-  const save = () => {
-    if (!form.title || !form.clientId || !form.dueDate) return;
+  const openAdd = () => { setEditing(null); setForm({ ...emptyForm, client_id: clients[0]?.id || "" }); setShowModal(true); };
+  const openEdit = (p) => { setEditing(p); setForm({ client_id: p.client_id, type: p.type, title: p.title, start_date: p.start_date, due_date: p.due_date, status: p.status, notes: p.notes || "", reminder: p.reminder || 3 }); setShowModal(true); };
+
+  const save = async () => {
+    if (!form.title || !form.client_id || !form.due_date) return;
+    setSaving(true);
+    const payload = { ...form, client_id: Number(form.client_id), user_id: userId };
     if (editing) {
-      setProcesses(prev => prev.map(p => p.id === editing ? { ...p, ...form, clientId: Number(form.clientId) } : p));
+      const { data } = await supabase.from("processes").update(payload).eq("id", editing.id).select().single();
+      setProcesses(prev => prev.map(p => p.id === editing.id ? data : p));
     } else {
-      setProcesses(prev => [...prev, { ...form, id: Date.now(), clientId: Number(form.clientId) }]);
+      const { data } = await supabase.from("processes").insert(payload).select().single();
+      setProcesses(prev => [...prev, data]);
     }
+    setSaving(false);
     setShowModal(false);
   };
-  const remove = (id) => setProcesses(prev => prev.filter(p => p.id !== id));
-  const updateStatus = (id, status) => setProcesses(prev => prev.map(p => p.id === id ? { ...p, status } : p));
+
+  const remove = async (id) => {
+    await supabase.from("processes").delete().eq("id", id);
+    setProcesses(prev => prev.filter(p => p.id !== id));
+  };
+
+  const updateStatus = async (id, status) => {
+    await supabase.from("processes").update({ status }).eq("id", id);
+    setProcesses(prev => prev.map(p => p.id === id ? { ...p, status } : p));
+  };
 
   const daysLeft = (d) => Math.ceil((new Date(d) - new Date()) / 86400000);
 
@@ -516,7 +574,6 @@ function ProcessesView({ processes, setProcesses, clients }) {
         <h2 style={{ fontSize: 22, fontWeight: 600, color: COLORS.text, margin: 0, fontFamily: "'Georgia', serif" }}>Procesos</h2>
         <button onClick={openAdd} style={{ ...btnPrimary, display: "flex", alignItems: "center", gap: 6 }}><Icon name="plus" size={15} color="#fff" /> Nuevo proceso</button>
       </div>
-
       <div style={{ background: COLORS.white, borderRadius: 12, border: `1px solid ${COLORS.border}`, marginBottom: 20, padding: "14px 16px", display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 200, background: COLORS.bg, borderRadius: 8, padding: "8px 12px" }}>
           <Icon name="search" size={15} color={COLORS.textMuted} />
@@ -533,28 +590,22 @@ function ProcessesView({ processes, setProcesses, clients }) {
           {Object.entries(PROCESS_TYPES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
       </div>
-
       <div style={{ background: COLORS.white, borderRadius: 12, border: `1px solid ${COLORS.border}`, overflow: "hidden" }}>
         {filtered.map((p, i) => {
-          const client = clientMap[p.clientId];
-          const dl = daysLeft(p.dueDate);
+          const client = clientMap[p.client_id];
+          const dl = daysLeft(p.due_date);
           const isOverdue = dl < 0 && p.status !== "completado";
           return (
             <div key={p.id} style={{ padding: "16px 20px", borderBottom: i < filtered.length - 1 ? `1px solid ${COLORS.border}` : "none", display: "flex", alignItems: "center", gap: 16 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
                   <p style={{ margin: 0, fontSize: 15, fontWeight: 500, color: COLORS.text }}>{p.title}</p>
-                  {isOverdue && <span style={{ background: COLORS.dangerLight, color: COLORS.danger, fontSize: 11, padding: "2px 7px", borderRadius: 4, whiteSpace: "nowrap" }}>ATRASADO</span>}
+                  {isOverdue && <span style={{ background: COLORS.dangerLight, color: COLORS.danger, fontSize: 11, padding: "2px 7px", borderRadius: 4 }}>ATRASADO</span>}
                 </div>
                 <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
                   <span style={{ fontSize: 13, color: COLORS.textMuted }}>{client?.name}</span>
-                  <span style={{ fontSize: 13, color: COLORS.textMuted }}>·</span>
-                  <span style={{ fontSize: 13, color: COLORS.textMuted }}>{PROCESS_TYPES[p.type]}</span>
-                  <span style={{ fontSize: 13, color: COLORS.textMuted }}>·</span>
-                  <span style={{ fontSize: 13, color: isOverdue ? COLORS.danger : COLORS.textMuted, display: "flex", alignItems: "center", gap: 4 }}>
-                    <Icon name="calendar" size={12} color={isOverdue ? COLORS.danger : COLORS.textMuted} />
-                    Vence: {p.dueDate} {p.status !== "completado" && dl >= 0 && dl <= 7 && <span style={{ color: COLORS.warning }}>({dl}d)</span>}
-                  </span>
+                  <span style={{ fontSize: 13, color: COLORS.textMuted }}>· {PROCESS_TYPES[p.type]}</span>
+                  <span style={{ fontSize: 13, color: isOverdue ? COLORS.danger : COLORS.textMuted }}>· Vence: {p.due_date}</span>
                 </div>
                 {p.notes && <p style={{ margin: "4px 0 0", fontSize: 12, color: COLORS.textMuted, fontStyle: "italic" }}>{p.notes}</p>}
               </div>
@@ -571,13 +622,13 @@ function ProcessesView({ processes, setProcesses, clients }) {
             </div>
           );
         })}
-        {filtered.length === 0 && <p style={{ padding: "40px", textAlign: "center", color: COLORS.textMuted, fontSize: 14 }}>Sin procesos</p>}
+        {filtered.length === 0 && <p style={{ padding: "40px", textAlign: "center", color: COLORS.textMuted, fontSize: 14 }}>Sin procesos registrados</p>}
       </div>
 
       {showModal && (
         <Modal title={editing ? "Editar proceso" : "Nuevo proceso"} onClose={() => setShowModal(false)}>
           <FormField label="Cliente" required>
-            <select style={inputStyle} value={form.clientId} onChange={e => setForm(f => ({ ...f, clientId: e.target.value }))}>
+            <select style={inputStyle} value={form.client_id} onChange={e => setForm(f => ({ ...f, client_id: e.target.value }))}>
               {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </FormField>
@@ -591,10 +642,10 @@ function ProcessesView({ processes, setProcesses, clients }) {
           </FormField>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <FormField label="Fecha de inicio">
-              <input style={inputStyle} type="date" value={form.startDate} onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))} />
+              <input style={inputStyle} type="date" value={form.start_date} onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))} />
             </FormField>
             <FormField label="Fecha límite" required>
-              <input style={inputStyle} type="date" value={form.dueDate} onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))} />
+              <input style={inputStyle} type="date" value={form.due_date} onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))} />
             </FormField>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -614,7 +665,7 @@ function ProcessesView({ processes, setProcesses, clients }) {
           </FormField>
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
             <button onClick={() => setShowModal(false)} style={btnSecondary}>Cancelar</button>
-            <button onClick={save} style={btnPrimary}>Guardar</button>
+            <button onClick={save} disabled={saving} style={{ ...btnPrimary, opacity: saving ? 0.7 : 1 }}>{saving ? "Guardando..." : "Guardar"}</button>
           </div>
         </Modal>
       )}
@@ -622,14 +673,14 @@ function ProcessesView({ processes, setProcesses, clients }) {
   );
 }
 
+// ─── REMINDERS ────────────────────────────────────────────────────────────────
 function RemindersView({ processes, clients }) {
   const clientMap = Object.fromEntries(clients.map(c => [c.id, c]));
   const now = new Date();
-
   const upcoming = processes
     .filter(p => p.status !== "completado")
     .map(p => {
-      const due = new Date(p.dueDate);
+      const due = new Date(p.due_date);
       const daysLeft = Math.ceil((due - now) / 86400000);
       const reminderDate = new Date(due);
       reminderDate.setDate(reminderDate.getDate() - (p.reminder || 3));
@@ -638,81 +689,53 @@ function RemindersView({ processes, clients }) {
     .filter(p => p.daysLeft >= -7 && p.daysLeft <= 30)
     .sort((a, b) => a.daysLeft - b.daysLeft);
 
-  const [config, setConfig] = useState({ email: DEMO_USER.email, defaultDays: 3 });
-  const [saved, setSaved] = useState(false);
-
-  const save = () => { setSaved(true); setTimeout(() => setSaved(false), 2000); };
-
   return (
     <div>
       <h2 style={{ fontSize: 22, fontWeight: 600, color: COLORS.text, margin: "0 0 24px", fontFamily: "'Georgia', serif" }}>Recordatorios</h2>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 20 }}>
-        <div>
-          <div style={{ background: COLORS.white, borderRadius: 12, border: `1px solid ${COLORS.border}`, overflow: "hidden" }}>
-            <div style={{ padding: "16px 20px", borderBottom: `1px solid ${COLORS.border}` }}>
-              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: COLORS.text }}>Próximos recordatorios</h3>
-              <p style={{ margin: "4px 0 0", fontSize: 13, color: COLORS.textMuted }}>Procesos que vencen en los próximos 30 días</p>
-            </div>
-            {upcoming.length === 0 ? (
-              <p style={{ padding: "40px", textAlign: "center", color: COLORS.textMuted }}>Sin recordatorios próximos</p>
-            ) : upcoming.map((p, i) => {
-              const isOverdue = p.daysLeft < 0;
-              const isUrgent = p.daysLeft >= 0 && p.daysLeft <= 3;
-              const bg = isOverdue ? COLORS.dangerLight : isUrgent ? COLORS.warningLight : COLORS.white;
-              return (
-                <div key={p.id} style={{ padding: "14px 20px", borderBottom: i < upcoming.length - 1 ? `1px solid ${COLORS.border}` : "none", background: bg, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-                    <div style={{ width: 36, height: 36, borderRadius: 8, background: isOverdue ? COLORS.danger + "20" : isUrgent ? COLORS.warning + "20" : COLORS.primary + "15", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                      <Icon name={isOverdue ? "alert" : "clock"} size={17} color={isOverdue ? COLORS.danger : isUrgent ? COLORS.warning : COLORS.primary} />
-                    </div>
-                    <div>
-                      <p style={{ margin: "0 0 2px", fontSize: 14, fontWeight: 500, color: COLORS.text }}>{p.title}</p>
-                      <p style={{ margin: "0 0 3px", fontSize: 12, color: COLORS.textMuted }}>{clientMap[p.clientId]?.name} · {PROCESS_TYPES[p.type]}</p>
-                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                        <Icon name="mail" size={12} color={COLORS.textMuted} />
-                        <span style={{ fontSize: 12, color: COLORS.textMuted }}>Recordatorio: {p.reminderDate.toLocaleDateString("es-MX")} ({p.reminder || 3}d antes)</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div style={{ textAlign: "right", flexShrink: 0 }}>
-                    <p style={{ margin: "0 0 4px", fontSize: 13, color: COLORS.textMuted }}>Vence: {p.dueDate}</p>
-                    <span style={{ background: isOverdue ? COLORS.danger : isUrgent ? COLORS.warning : COLORS.primary, color: "#fff", fontSize: 12, padding: "3px 10px", borderRadius: 20, fontWeight: 500 }}>
-                      {isOverdue ? `${Math.abs(p.daysLeft)}d atrasado` : p.daysLeft === 0 ? "Hoy" : `${p.daysLeft}d`}
-                    </span>
-                  </div>
+      <div style={{ background: COLORS.white, borderRadius: 12, border: `1px solid ${COLORS.border}`, overflow: "hidden" }}>
+        <div style={{ padding: "16px 20px", borderBottom: `1px solid ${COLORS.border}` }}>
+          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: COLORS.text }}>Próximos recordatorios</h3>
+          <p style={{ margin: "4px 0 0", fontSize: 13, color: COLORS.textMuted }}>Procesos que vencen en los próximos 30 días</p>
+        </div>
+        {upcoming.length === 0 ? (
+          <p style={{ padding: "40px", textAlign: "center", color: COLORS.textMuted }}>Sin recordatorios próximos</p>
+        ) : upcoming.map((p, i) => {
+          const isOverdue = p.daysLeft < 0;
+          const isUrgent = p.daysLeft >= 0 && p.daysLeft <= 3;
+          return (
+            <div key={p.id} style={{ padding: "14px 20px", borderBottom: i < upcoming.length - 1 ? `1px solid ${COLORS.border}` : "none", background: isOverdue ? COLORS.dangerLight : isUrgent ? COLORS.warningLight : COLORS.white, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                <div style={{ width: 36, height: 36, borderRadius: 8, background: isOverdue ? COLORS.danger + "20" : isUrgent ? COLORS.warning + "20" : COLORS.primary + "15", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Icon name={isOverdue ? "alert" : "clock"} size={17} color={isOverdue ? COLORS.danger : isUrgent ? COLORS.warning : COLORS.primary} />
                 </div>
-              );
-            })}
-          </div>
-        </div>
-
-        <div style={{ background: COLORS.white, borderRadius: 12, border: `1px solid ${COLORS.border}`, padding: 24, height: "fit-content" }}>
-          <h3 style={{ margin: "0 0 16px", fontSize: 15, fontWeight: 600, color: COLORS.text }}>Configuración de correos</h3>
-          <FormField label="Correo de notificaciones">
-            <input style={inputStyle} type="email" value={config.email} onChange={e => setConfig(c => ({ ...c, email: e.target.value }))} />
-          </FormField>
-          <FormField label="Días de anticipación por defecto">
-            <input style={inputStyle} type="number" min="1" max="30" value={config.defaultDays} onChange={e => setConfig(c => ({ ...c, defaultDays: Number(e.target.value) }))} />
-          </FormField>
-          <button onClick={save} style={{ ...btnPrimary, width: "100%" }}>{saved ? "✓ Guardado" : "Guardar configuración"}</button>
-          <div style={{ marginTop: 16, padding: 12, background: COLORS.accentLight, borderRadius: 8 }}>
-            <p style={{ margin: "0 0 4px", fontSize: 13, fontWeight: 500, color: "#0F6E56" }}>Notificaciones activas</p>
-            <p style={{ margin: 0, fontSize: 12, color: "#0F6E56" }}>Se enviarán recordatorios a <strong>{config.email}</strong> {config.defaultDays} días antes del vencimiento de cada proceso.</p>
-          </div>
-        </div>
+                <div>
+                  <p style={{ margin: "0 0 2px", fontSize: 14, fontWeight: 500, color: COLORS.text }}>{p.title}</p>
+                  <p style={{ margin: "0 0 3px", fontSize: 12, color: COLORS.textMuted }}>{clientMap[p.client_id]?.name} · {PROCESS_TYPES[p.type]}</p>
+                  <p style={{ margin: 0, fontSize: 12, color: COLORS.textMuted }}>Recordatorio configurado: {p.reminder || 3} días antes</p>
+                </div>
+              </div>
+              <div style={{ textAlign: "right", flexShrink: 0 }}>
+                <p style={{ margin: "0 0 4px", fontSize: 13, color: COLORS.textMuted }}>Vence: {p.due_date}</p>
+                <span style={{ background: isOverdue ? COLORS.danger : isUrgent ? COLORS.warning : COLORS.primary, color: "#fff", fontSize: 12, padding: "3px 10px", borderRadius: 20, fontWeight: 500 }}>
+                  {isOverdue ? `${Math.abs(p.daysLeft)}d atraso` : p.daysLeft === 0 ? "Hoy" : `${p.daysLeft}d`}
+                </span>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 }
 
+// ─── HISTORY ──────────────────────────────────────────────────────────────────
 function HistoryView({ processes, clients }) {
   const clientMap = Object.fromEntries(clients.map(c => [c.id, c]));
   const [filterClient, setFilterClient] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
-
   const sorted = [...processes]
-    .filter(p => (filterClient === "all" || p.clientId === Number(filterClient)) && (filterStatus === "all" || p.status === filterStatus))
-    .sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
+    .filter(p => (filterClient === "all" || p.client_id === Number(filterClient)) && (filterStatus === "all" || p.status === filterStatus))
+    .sort((a, b) => new Date(b.start_date) - new Date(a.start_date));
 
   return (
     <div>
@@ -730,7 +753,6 @@ function HistoryView({ processes, clients }) {
         </select>
         <span style={{ fontSize: 13, color: COLORS.textMuted, display: "flex", alignItems: "center" }}>{sorted.length} registros</span>
       </div>
-
       <div style={{ background: COLORS.white, borderRadius: 12, border: `1px solid ${COLORS.border}`, overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
@@ -744,10 +766,10 @@ function HistoryView({ processes, clients }) {
             {sorted.map((p, i) => (
               <tr key={p.id} style={{ borderBottom: i < sorted.length - 1 ? `1px solid ${COLORS.border}` : "none", background: p.status === "completado" ? "#fafaf8" : COLORS.white }}>
                 <td style={{ padding: "12px 16px", fontSize: 14, fontWeight: 500, color: COLORS.text }}>{p.title}</td>
-                <td style={{ padding: "12px 16px", fontSize: 13, color: COLORS.textMuted }}>{clientMap[p.clientId]?.name || "—"}</td>
+                <td style={{ padding: "12px 16px", fontSize: 13, color: COLORS.textMuted }}>{clientMap[p.client_id]?.name || "—"}</td>
                 <td style={{ padding: "12px 16px", fontSize: 13, color: COLORS.textMuted }}>{PROCESS_TYPES[p.type]}</td>
-                <td style={{ padding: "12px 16px", fontSize: 13, color: COLORS.textMuted }}>{p.startDate}</td>
-                <td style={{ padding: "12px 16px", fontSize: 13, color: COLORS.textMuted }}>{p.dueDate}</td>
+                <td style={{ padding: "12px 16px", fontSize: 13, color: COLORS.textMuted }}>{p.start_date}</td>
+                <td style={{ padding: "12px 16px", fontSize: 13, color: COLORS.textMuted }}>{p.due_date}</td>
                 <td style={{ padding: "12px 16px" }}><Badge status={p.status} /></td>
                 <td style={{ padding: "12px 16px", fontSize: 13, color: COLORS.textMuted, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.notes || "—"}</td>
               </tr>
@@ -760,26 +782,68 @@ function HistoryView({ processes, clients }) {
   );
 }
 
+// ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function App() {
   const [user, setUser] = useState(null);
+  const [profile, setProfile] = useState(null);
   const [active, setActive] = useState("dashboard");
-  const [clients, setClients] = useState(INITIAL_CLIENTS);
-  const [processes, setProcesses] = useState(INITIAL_PROCESSES);
+  const [clients, setClients] = useState([]);
+  const [processes, setProcesses] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  if (!user) return <LoginScreen onLogin={setUser} />;
+  // Verificar sesión activa al cargar
+  useEffect(() => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session) {
+        const { data: prof } = await supabase.from("profiles").select("*").eq("id", session.user.id).single();
+        setUser(session.user);
+        setProfile(prof);
+      }
+      setLoading(false);
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!session) { setUser(null); setProfile(null); setClients([]); setProcesses([]); }
+    });
+    return () => listener.subscription.unsubscribe();
+  }, []);
+
+  // Cargar datos cuando hay usuario
+  useEffect(() => {
+    if (!user) return;
+    const loadData = async () => {
+      const [{ data: c }, { data: p }] = await Promise.all([
+        supabase.from("clients").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
+        supabase.from("processes").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
+      ]);
+      setClients(c || []);
+      setProcesses(p || []);
+    };
+    loadData();
+  }, [user]);
+
+  const handleAuth = (u, prof) => { setUser(u); setProfile(prof); };
+  const handleLogout = async () => { await supabase.auth.signOut(); setUser(null); setProfile(null); };
+
+  if (loading) return (
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: COLORS.bg }}>
+      <Spinner />
+    </div>
+  );
+
+  if (!user) return <AuthScreen onAuth={handleAuth} />;
 
   const views = {
     dashboard: <DashboardView clients={clients} processes={processes} />,
-    clients: <ClientsView clients={clients} setClients={setClients} processes={processes} />,
-    processes: <ProcessesView processes={processes} setProcesses={setProcesses} clients={clients} />,
+    clients: <ClientsView clients={clients} setClients={setClients} processes={processes} userId={user.id} />,
+    processes: <ProcessesView processes={processes} setProcesses={setProcesses} clients={clients} userId={user.id} />,
     reminders: <RemindersView processes={processes} clients={clients} />,
     history: <HistoryView processes={processes} clients={clients} />,
   };
 
   return (
     <div style={{ display: "flex", minHeight: "100vh", fontFamily: "'Segoe UI', system-ui, sans-serif", background: COLORS.bg }}>
-      <Sidebar active={active} setActive={setActive} user={user} onLogout={() => setUser(null)} />
-      <div style={{ flex: 1, padding: 36, overflow: "auto", maxWidth: "100%" }}>
+      <Sidebar active={active} setActive={setActive} profile={profile} onLogout={handleLogout} />
+      <div style={{ flex: 1, padding: 36, overflow: "auto" }}>
         {views[active]}
       </div>
     </div>
