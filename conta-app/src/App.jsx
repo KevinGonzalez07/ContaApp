@@ -1,5 +1,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { createClient } from "@supabase/supabase-js";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import * as XLSX from "xlsx";
 
 const supabase = createClient(
   "https://ujuikoviyyyagxekszuz.supabase.co",
@@ -7,46 +10,30 @@ const supabase = createClient(
 );
 
 const COLORS = {
-  primary: "#1B3A5C",
-  primaryLight: "#2D5F8A",
-  accent: "#1D9E75",
-  accentLight: "#E1F5EE",
-  danger: "#A32D2D",
-  dangerLight: "#FCEBEB",
-  warning: "#854F0B",
-  warningLight: "#FAEEDA",
-  gray: "#5F5E5A",
-  grayLight: "#F1EFE8",
-  border: "rgba(0,0,0,0.1)",
-  white: "#FFFFFF",
-  bg: "#F7F6F2",
-  text: "#1C1C1A",
-  textMuted: "#6B6B67",
+  primary: "#1B3A5C", accent: "#1D9E75", accentLight: "#E1F5EE",
+  danger: "#A32D2D", dangerLight: "#FCEBEB", warning: "#854F0B", warningLight: "#FAEEDA",
+  gray: "#5F5E5A", grayLight: "#F1EFE8", border: "rgba(0,0,0,0.1)",
+  white: "#FFFFFF", bg: "#F7F6F2", text: "#1C1C1A", textMuted: "#6B6B67",
 };
 
 const PROCESS_TYPES = {
-  declaracion_mensual: "Declaración Mensual",
-  declaracion_anual: "Declaración Anual",
-  tramite_fiscal: "Trámite Fiscal",
-  otro: "Otro",
+  declaracion_mensual: "Declaración Mensual", declaracion_anual: "Declaración Anual",
+  tramite_fiscal: "Trámite Fiscal", otro: "Otro",
 };
 
 const STATUS_CONFIG = {
-  pendiente: { label: "Pendiente", bg: COLORS.warningLight, color: COLORS.warning },
+  pendiente: { label: "Pendiente", bg: "#FAEEDA", color: "#854F0B" },
   en_proceso: { label: "En Proceso", bg: "#E6F1FB", color: "#185FA5" },
-  completado: { label: "Completado", bg: COLORS.accentLight, color: "#0F6E56" },
+  completado: { label: "Completado", bg: "#E1F5EE", color: "#0F6E56" },
 };
 
+const MONTHS = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
 const fmt = (d) => d instanceof Date ? d.toISOString().split("T")[0] : d;
 const today = new Date();
 
 function Badge({ status }) {
   const c = STATUS_CONFIG[status] || STATUS_CONFIG.pendiente;
-  return (
-    <span style={{ background: c.bg, color: c.color, padding: "3px 10px", borderRadius: 20, fontSize: 12, fontWeight: 500, whiteSpace: "nowrap" }}>
-      {c.label}
-    </span>
-  );
+  return <span style={{ background: c.bg, color: c.color, padding: "3px 10px", borderRadius: 20, fontSize: 12, fontWeight: 500, whiteSpace: "nowrap" }}>{c.label}</span>;
 }
 
 function Icon({ name, size = 18, color = "currentColor" }) {
@@ -55,6 +42,8 @@ function Icon({ name, size = 18, color = "currentColor" }) {
     clients: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
     processes: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>,
     reminders: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>,
+    calendar: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
+    history: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8"><polyline points="1,4 1,10 7,10"/><path d="M3.51 15a9 9 0 1 0 .49-4.51"/></svg>,
     logout: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16,17 21,12 16,7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>,
     plus: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
     search: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>,
@@ -65,9 +54,11 @@ function Icon({ name, size = 18, color = "currentColor" }) {
     check: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5"><polyline points="20,6 9,17 4,12"/></svg>,
     user: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
     x: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
-    history: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8"><polyline points="1,4 1,10 7,10"/><path d="M3.51 15a9 9 0 1 0 .49-4.51"/></svg>,
-    calendar: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
-    mail: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>,
+    download: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
+    chevronLeft: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2"><polyline points="15,18 9,12 15,6"/></svg>,
+    chevronRight: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2"><polyline points="9,18 15,12 9,6"/></svg>,
+    fileText: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>,
+    table: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg>,
     spinner: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>,
   };
   return icons[name] || null;
@@ -76,18 +67,16 @@ function Icon({ name, size = 18, color = "currentColor" }) {
 function Spinner() {
   return (
     <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: 200 }}>
-      <div style={{ animation: "spin 1s linear infinite" }}>
-        <Icon name="spinner" size={32} color={COLORS.primary} />
-      </div>
-      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+      <div style={{ animation: "spin 1s linear infinite" }}><Icon name="spinner" size={32} color={COLORS.primary} /></div>
+      <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
     </div>
   );
 }
 
-function Modal({ title, onClose, children }) {
+function Modal({ title, onClose, children, maxWidth = 540 }) {
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 20 }}>
-      <div style={{ background: COLORS.white, borderRadius: 12, width: "100%", maxWidth: 540, maxHeight: "90vh", overflow: "auto", boxShadow: "0 8px 40px rgba(0,0,0,0.18)" }}>
+      <div style={{ background: COLORS.white, borderRadius: 12, width: "100%", maxWidth, maxHeight: "90vh", overflow: "auto", boxShadow: "0 8px 40px rgba(0,0,0,0.18)" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px 24px 16px", borderBottom: `1px solid ${COLORS.border}` }}>
           <h3 style={{ margin: 0, fontSize: 17, fontWeight: 600, color: COLORS.text }}>{title}</h3>
           <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, color: COLORS.gray }}><Icon name="x" size={20} /></button>
@@ -101,9 +90,7 @@ function Modal({ title, onClose, children }) {
 function FormField({ label, children, required }) {
   return (
     <div style={{ marginBottom: 16 }}>
-      <label style={{ display: "block", fontSize: 13, fontWeight: 500, color: COLORS.textMuted, marginBottom: 6 }}>
-        {label}{required && <span style={{ color: COLORS.danger }}> *</span>}
-      </label>
+      <label style={{ display: "block", fontSize: 13, fontWeight: 500, color: COLORS.textMuted, marginBottom: 6 }}>{label}{required && <span style={{ color: COLORS.danger }}> *</span>}</label>
       {children}
     </div>
   );
@@ -113,9 +100,60 @@ const inputStyle = { width: "100%", padding: "9px 12px", border: `1px solid ${CO
 const btnPrimary = { background: COLORS.primary, color: "#fff", border: "none", borderRadius: 8, padding: "10px 20px", fontSize: 14, fontWeight: 500, cursor: "pointer" };
 const btnSecondary = { background: "none", color: COLORS.gray, border: `1px solid ${COLORS.border}`, borderRadius: 8, padding: "10px 20px", fontSize: 14, cursor: "pointer" };
 
-// ─── AUTH SCREEN ───────────────────────────────────────────────────────────────
+// ─── EXPORT FUNCTIONS ─────────────────────────────────────────────────────────
+function exportClientsPDF(clients, despacho) {
+  const doc = new jsPDF();
+  doc.setFontSize(18); doc.setTextColor(27, 58, 92);
+  doc.text("Lista de Clientes", 14, 20);
+  doc.setFontSize(10); doc.setTextColor(107, 107, 103);
+  doc.text(`${despacho || "Despacho Contable"} · ${new Date().toLocaleDateString("es-MX")}`, 14, 28);
+  autoTable(doc, {
+    startY: 35,
+    head: [["Nombre", "RFC", "Correo", "Teléfono", "Tipo", "Estado"]],
+    body: clients.map(c => [c.name, c.rfc || "—", c.email, c.phone || "—", c.type === "fisica" ? "Persona Física" : "Persona Moral", c.status === "activo" ? "Activo" : "Inactivo"]),
+    headStyles: { fillColor: [27, 58, 92], textColor: 255, fontSize: 10 },
+    bodyStyles: { fontSize: 9 }, alternateRowStyles: { fillColor: [247, 246, 242] },
+  });
+  doc.save(`clientes_${fmt(today)}.pdf`);
+}
+
+function exportClientsExcel(clients) {
+  const ws = XLSX.utils.json_to_sheet(clients.map(c => ({ Nombre: c.name, RFC: c.rfc || "", Correo: c.email, Teléfono: c.phone || "", Tipo: c.type === "fisica" ? "Persona Física" : "Persona Moral", Estado: c.status === "activo" ? "Activo" : "Inactivo" })));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Clientes");
+  XLSX.writeFile(wb, `clientes_${fmt(today)}.xlsx`);
+}
+
+function exportProcessesPDF(processes, clients, despacho, month, year) {
+  const clientMap = Object.fromEntries(clients.map(c => [c.id, c]));
+  const filtered = processes.filter(p => { const d = new Date(p.due_date); return d.getMonth() === month && d.getFullYear() === year; });
+  const doc = new jsPDF();
+  doc.setFontSize(18); doc.setTextColor(27, 58, 92);
+  doc.text(`Procesos — ${MONTHS[month]} ${year}`, 14, 20);
+  doc.setFontSize(10); doc.setTextColor(107, 107, 103);
+  doc.text(`${despacho || "Despacho Contable"} · Generado: ${new Date().toLocaleDateString("es-MX")}`, 14, 28);
+  autoTable(doc, {
+    startY: 35,
+    head: [["Proceso", "Cliente", "Tipo", "Vencimiento", "Estado"]],
+    body: filtered.map(p => [p.title, clientMap[p.client_id]?.name || "—", PROCESS_TYPES[p.type], p.due_date, STATUS_CONFIG[p.status]?.label || p.status]),
+    headStyles: { fillColor: [27, 58, 92], textColor: 255, fontSize: 10 },
+    bodyStyles: { fontSize: 9 }, alternateRowStyles: { fillColor: [247, 246, 242] },
+  });
+  doc.save(`procesos_${MONTHS[month]}_${year}.pdf`);
+}
+
+function exportProcessesExcel(processes, clients, month, year) {
+  const clientMap = Object.fromEntries(clients.map(c => [c.id, c]));
+  const filtered = processes.filter(p => { const d = new Date(p.due_date); return d.getMonth() === month && d.getFullYear() === year; });
+  const ws = XLSX.utils.json_to_sheet(filtered.map(p => ({ Proceso: p.title, Cliente: clientMap[p.client_id]?.name || "—", Tipo: PROCESS_TYPES[p.type], Inicio: p.start_date, Vencimiento: p.due_date, Estado: STATUS_CONFIG[p.status]?.label || p.status, Notas: p.notes || "" })));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Procesos");
+  XLSX.writeFile(wb, `procesos_${MONTHS[month]}_${year}.xlsx`);
+}
+
+// ─── AUTH SCREEN ──────────────────────────────────────────────────────────────
 function AuthScreen({ onAuth }) {
-  const [mode, setMode] = useState("login"); // login | register
+  const [mode, setMode] = useState("login");
   const [form, setForm] = useState({ email: "", password: "", name: "", despacho: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -135,77 +173,44 @@ function AuthScreen({ onAuth }) {
         const { data, error: e } = await supabase.auth.signUp({ email: form.email, password: form.password });
         if (e) throw e;
         await supabase.from("profiles").insert({ id: data.user.id, name: form.name, despacho: form.despacho, email: form.email });
-        const profile = { name: form.name, despacho: form.despacho, email: form.email };
-        onAuth(data.user, profile);
+        onAuth(data.user, { name: form.name, despacho: form.despacho, email: form.email });
       }
-    } catch (e) {
-      setError(e.message || "Ocurrió un error, intenta de nuevo.");
-    }
+    } catch (e) { setError(e.message || "Ocurrió un error, intenta de nuevo."); }
     setLoading(false);
   };
 
   return (
     <div style={{ minHeight: "100vh", background: COLORS.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Segoe UI', system-ui, sans-serif", padding: 20 }}>
       <div style={{ display: "flex", width: "100%", maxWidth: 900, background: COLORS.white, borderRadius: 16, overflow: "hidden", boxShadow: "0 4px 40px rgba(0,0,0,0.1)" }}>
-        {/* Panel izquierdo */}
         <div style={{ flex: 1, background: COLORS.primary, padding: "60px 48px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
           <div style={{ width: 48, height: 48, background: COLORS.accent, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 32 }}>
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
           </div>
           <h1 style={{ color: "#fff", fontSize: 28, fontWeight: 700, margin: "0 0 12px", fontFamily: "'Georgia', serif" }}>ContaDesk</h1>
-          <p style={{ color: "rgba(255,255,255,0.65)", fontSize: 15, lineHeight: 1.6, margin: "0 0 40px" }}>Plataforma profesional para la gestión de clientes y procesos fiscales.</p>
+          <p style={{ color: "rgba(255,255,255,0.65)", fontSize: 15, lineHeight: 1.6, margin: "0 0 40px" }}>Plataforma profesional para gestión contable.</p>
           <div style={{ borderTop: "1px solid rgba(255,255,255,0.15)", paddingTop: 32 }}>
-            {["Gestión de clientes y RFC", "Control de declaraciones", "Recordatorios automáticos", "Dashboard en tiempo real"].map(f => (
+            {["Gestión de clientes y RFC", "Control de declaraciones", "Exportar PDF y Excel", "Calendario de vencimientos"].map(f => (
               <div key={f} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-                <div style={{ width: 18, height: 18, borderRadius: "50%", background: COLORS.accent, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <Icon name="check" size={10} color="#fff" />
-                </div>
+                <div style={{ width: 18, height: 18, borderRadius: "50%", background: COLORS.accent, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon name="check" size={10} color="#fff" /></div>
                 <span style={{ color: "rgba(255,255,255,0.8)", fontSize: 14 }}>{f}</span>
               </div>
             ))}
           </div>
         </div>
-
-        {/* Panel derecho */}
         <div style={{ flex: 1, padding: "60px 48px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
-          <h2 style={{ fontSize: 24, fontWeight: 600, color: COLORS.text, margin: "0 0 8px", fontFamily: "'Georgia', serif" }}>
-            {mode === "login" ? "Iniciar sesión" : "Crear cuenta"}
-          </h2>
-          <p style={{ color: COLORS.textMuted, fontSize: 14, margin: "0 0 32px" }}>
-            {mode === "login" ? "Accede a tu panel de control" : "Registra tu despacho contable"}
-          </p>
-
-          {mode === "register" && (
-            <>
-              <FormField label="Nombre completo" required>
-                <input style={inputStyle} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Lic. María González" />
-              </FormField>
-              <FormField label="Nombre del despacho" required>
-                <input style={inputStyle} value={form.despacho} onChange={e => setForm(f => ({ ...f, despacho: e.target.value }))} placeholder="Despacho Contable González" />
-              </FormField>
-            </>
-          )}
-
-          <FormField label="Correo electrónico" required>
-            <input style={inputStyle} type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="correo@ejemplo.mx" onKeyDown={e => e.key === "Enter" && handleSubmit()} />
-          </FormField>
-          <FormField label="Contraseña" required>
-            <input style={inputStyle} type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="Mínimo 6 caracteres" onKeyDown={e => e.key === "Enter" && handleSubmit()} />
-          </FormField>
-
-          {error && (
-            <p style={{ color: COLORS.danger, fontSize: 13, margin: "-8px 0 16px", background: COLORS.dangerLight, padding: "10px 12px", borderRadius: 8 }}>{error}</p>
-          )}
-
-          <button onClick={handleSubmit} disabled={loading} style={{ ...btnPrimary, width: "100%", padding: "13px 20px", fontSize: 15, opacity: loading ? 0.7 : 1 }}>
-            {loading ? "Procesando..." : mode === "login" ? "Entrar" : "Crear cuenta"}
-          </button>
-
+          <h2 style={{ fontSize: 24, fontWeight: 600, color: COLORS.text, margin: "0 0 8px", fontFamily: "'Georgia', serif" }}>{mode === "login" ? "Iniciar sesión" : "Crear cuenta"}</h2>
+          <p style={{ color: COLORS.textMuted, fontSize: 14, margin: "0 0 32px" }}>{mode === "login" ? "Accede a tu panel de control" : "Registra tu despacho contable"}</p>
+          {mode === "register" && <>
+            <FormField label="Nombre completo" required><input style={inputStyle} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Lic. María González" /></FormField>
+            <FormField label="Nombre del despacho" required><input style={inputStyle} value={form.despacho} onChange={e => setForm(f => ({ ...f, despacho: e.target.value }))} placeholder="Despacho Contable González" /></FormField>
+          </>}
+          <FormField label="Correo electrónico" required><input style={inputStyle} type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="correo@ejemplo.mx" onKeyDown={e => e.key === "Enter" && handleSubmit()} /></FormField>
+          <FormField label="Contraseña" required><input style={inputStyle} type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="Mínimo 6 caracteres" onKeyDown={e => e.key === "Enter" && handleSubmit()} /></FormField>
+          {error && <p style={{ color: COLORS.danger, fontSize: 13, margin: "-8px 0 16px", background: COLORS.dangerLight, padding: "10px 12px", borderRadius: 8 }}>{error}</p>}
+          <button onClick={handleSubmit} disabled={loading} style={{ ...btnPrimary, width: "100%", padding: "13px 20px", fontSize: 15, opacity: loading ? 0.7 : 1 }}>{loading ? "Procesando..." : mode === "login" ? "Entrar" : "Crear cuenta"}</button>
           <p style={{ textAlign: "center", fontSize: 14, color: COLORS.textMuted, marginTop: 20 }}>
             {mode === "login" ? "¿No tienes cuenta?" : "¿Ya tienes cuenta?"}{" "}
-            <button onClick={() => { setMode(mode === "login" ? "register" : "login"); setError(""); }} style={{ background: "none", border: "none", color: COLORS.primary, cursor: "pointer", fontWeight: 600, fontSize: 14 }}>
-              {mode === "login" ? "Regístrate" : "Inicia sesión"}
-            </button>
+            <button onClick={() => { setMode(mode === "login" ? "register" : "login"); setError(""); }} style={{ background: "none", border: "none", color: COLORS.primary, cursor: "pointer", fontWeight: 600, fontSize: 14 }}>{mode === "login" ? "Regístrate" : "Inicia sesión"}</button>
           </p>
         </div>
       </div>
@@ -215,11 +220,13 @@ function AuthScreen({ onAuth }) {
 
 // ─── SIDEBAR ──────────────────────────────────────────────────────────────────
 function Sidebar({ active, setActive, profile, onLogout }) {
-  const navItems = [
+  const nav = [
     { id: "dashboard", label: "Dashboard", icon: "dashboard" },
     { id: "clients", label: "Clientes", icon: "clients" },
     { id: "processes", label: "Procesos", icon: "processes" },
+    { id: "calendar", label: "Calendario", icon: "calendar" },
     { id: "reminders", label: "Recordatorios", icon: "reminders" },
+    { id: "reports", label: "Reportes", icon: "download" },
     { id: "history", label: "Historial", icon: "history" },
   ];
   return (
@@ -233,10 +240,9 @@ function Sidebar({ active, setActive, profile, onLogout }) {
         </div>
       </div>
       <div style={{ padding: "8px 12px", flex: 1 }}>
-        {navItems.map(item => (
+        {nav.map(item => (
           <button key={item.id} onClick={() => setActive(item.id)} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "10px 12px", marginBottom: 2, borderRadius: 8, border: "none", cursor: "pointer", background: active === item.id ? "rgba(255,255,255,0.12)" : "none", color: active === item.id ? "#fff" : "rgba(255,255,255,0.6)", fontSize: 14, fontWeight: active === item.id ? 500 : 400, textAlign: "left" }}>
-            <Icon name={item.icon} size={17} color={active === item.id ? "#fff" : "rgba(255,255,255,0.6)"} />
-            {item.label}
+            <Icon name={item.icon} size={17} color={active === item.id ? "#fff" : "rgba(255,255,255,0.6)"} />{item.label}
           </button>
         ))}
       </div>
@@ -253,13 +259,10 @@ function Sidebar({ active, setActive, profile, onLogout }) {
   );
 }
 
-// ─── STAT CARD ────────────────────────────────────────────────────────────────
 function StatCard({ label, value, icon, color = COLORS.primary, sub }) {
   return (
     <div style={{ background: COLORS.white, borderRadius: 12, padding: "20px 22px", border: `1px solid ${COLORS.border}`, display: "flex", alignItems: "flex-start", gap: 16 }}>
-      <div style={{ width: 44, height: 44, borderRadius: 10, background: color + "18", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-        <Icon name={icon} size={20} color={color} />
-      </div>
+      <div style={{ width: 44, height: 44, borderRadius: 10, background: color + "18", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon name={icon} size={20} color={color} /></div>
       <div>
         <p style={{ margin: "0 0 4px", fontSize: 13, color: COLORS.textMuted }}>{label}</p>
         <p style={{ margin: "0 0 2px", fontSize: 26, fontWeight: 700, color: COLORS.text, lineHeight: 1 }}>{value}</p>
@@ -270,23 +273,28 @@ function StatCard({ label, value, icon, color = COLORS.primary, sub }) {
 }
 
 // ─── DASHBOARD ────────────────────────────────────────────────────────────────
-function DashboardView({ clients, processes }) {
+function DashboardView({ clients, processes, setActive }) {
   const now = new Date();
-  const active = clients.filter(c => c.status === "activo").length;
+  const activeClients = clients.filter(c => c.status === "activo").length;
   const overdue = processes.filter(p => p.status !== "completado" && new Date(p.due_date) < now);
   const dueSoon = processes.filter(p => p.status !== "completado" && new Date(p.due_date) >= now && new Date(p.due_date) <= new Date(now.getTime() + 7 * 86400000));
   const inProcess = processes.filter(p => p.status === "en_proceso").length;
   const clientMap = Object.fromEntries(clients.map(c => [c.id, c]));
-  const daysLeft = (d) => Math.ceil((new Date(d) - now) / 86400000);
+  const daysLeft = d => Math.ceil((new Date(d) - now) / 86400000);
 
   return (
     <div>
       <h2 style={{ fontSize: 22, fontWeight: 600, color: COLORS.text, margin: "0 0 24px", fontFamily: "'Georgia', serif" }}>Dashboard</h2>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14, marginBottom: 32 }}>
-        <StatCard label="Clientes activos" value={active} icon="clients" color={COLORS.primary} />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14, marginBottom: 28 }}>
+        <StatCard label="Clientes activos" value={activeClients} icon="clients" color={COLORS.primary} />
         <StatCard label="En proceso" value={inProcess} icon="processes" color="#185FA5" />
         <StatCard label="Vencen pronto" value={dueSoon.length} icon="clock" color={COLORS.warning} sub="próximos 7 días" />
         <StatCard label="Atrasados" value={overdue.length} icon="alert" color={COLORS.danger} />
+      </div>
+      <div style={{ display: "flex", gap: 10, marginBottom: 28, flexWrap: "wrap" }}>
+        <button onClick={() => setActive("processes")} style={{ ...btnPrimary, display: "flex", alignItems: "center", gap: 7, fontSize: 13 }}><Icon name="plus" size={14} color="#fff" /> Nueva declaración</button>
+        <button onClick={() => setActive("calendar")} style={{ ...btnSecondary, display: "flex", alignItems: "center", gap: 7, fontSize: 13 }}><Icon name="calendar" size={14} color={COLORS.gray} /> Ver calendario</button>
+        <button onClick={() => setActive("reports")} style={{ ...btnSecondary, display: "flex", alignItems: "center", gap: 7, fontSize: 13 }}><Icon name="download" size={14} color={COLORS.gray} /> Exportar reporte</button>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
         <div style={{ background: COLORS.white, borderRadius: 12, border: `1px solid ${COLORS.border}`, overflow: "hidden" }}>
@@ -294,45 +302,181 @@ function DashboardView({ clients, processes }) {
             <Icon name="alert" size={16} color={COLORS.danger} />
             <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: COLORS.text }}>Procesos atrasados</h3>
           </div>
-          {overdue.length === 0 ? (
-            <p style={{ padding: "20px", color: COLORS.textMuted, fontSize: 14, textAlign: "center" }}>Sin atrasos</p>
-          ) : overdue.slice(0, 5).map(p => (
-            <div key={p.id} style={{ padding: "12px 20px", borderBottom: `1px solid ${COLORS.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div>
-                <p style={{ margin: "0 0 2px", fontSize: 14, fontWeight: 500, color: COLORS.text }}>{p.title}</p>
-                <p style={{ margin: 0, fontSize: 12, color: COLORS.textMuted }}>{clientMap[p.client_id]?.name}</p>
+          {overdue.length === 0 ? <p style={{ padding: "20px", color: COLORS.textMuted, fontSize: 14, textAlign: "center" }}>Sin atrasos</p>
+            : overdue.slice(0, 5).map(p => (
+              <div key={p.id} style={{ padding: "12px 20px", borderBottom: `1px solid ${COLORS.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div><p style={{ margin: "0 0 2px", fontSize: 14, fontWeight: 500, color: COLORS.text }}>{p.title}</p><p style={{ margin: 0, fontSize: 12, color: COLORS.textMuted }}>{clientMap[p.client_id]?.name}</p></div>
+                <span style={{ background: COLORS.dangerLight, color: COLORS.danger, fontSize: 12, padding: "3px 8px", borderRadius: 6 }}>{Math.abs(daysLeft(p.due_date))}d atraso</span>
               </div>
-              <span style={{ background: COLORS.dangerLight, color: COLORS.danger, fontSize: 12, padding: "3px 8px", borderRadius: 6 }}>
-                {Math.abs(daysLeft(p.due_date))}d atraso
-              </span>
-            </div>
-          ))}
+            ))}
         </div>
         <div style={{ background: COLORS.white, borderRadius: 12, border: `1px solid ${COLORS.border}`, overflow: "hidden" }}>
           <div style={{ padding: "16px 20px", borderBottom: `1px solid ${COLORS.border}`, display: "flex", alignItems: "center", gap: 8 }}>
             <Icon name="clock" size={16} color={COLORS.warning} />
             <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: COLORS.text }}>Próximos vencimientos</h3>
           </div>
-          {dueSoon.length === 0 ? (
-            <p style={{ padding: "20px", color: COLORS.textMuted, fontSize: 14, textAlign: "center" }}>Sin vencimientos próximos</p>
-          ) : dueSoon.slice(0, 5).map(p => (
-            <div key={p.id} style={{ padding: "12px 20px", borderBottom: `1px solid ${COLORS.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div>
-                <p style={{ margin: "0 0 2px", fontSize: 14, fontWeight: 500, color: COLORS.text }}>{p.title}</p>
-                <p style={{ margin: 0, fontSize: 12, color: COLORS.textMuted }}>{clientMap[p.client_id]?.name}</p>
+          {dueSoon.length === 0 ? <p style={{ padding: "20px", color: COLORS.textMuted, fontSize: 14, textAlign: "center" }}>Sin vencimientos próximos</p>
+            : dueSoon.slice(0, 5).map(p => (
+              <div key={p.id} style={{ padding: "12px 20px", borderBottom: `1px solid ${COLORS.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div><p style={{ margin: "0 0 2px", fontSize: 14, fontWeight: 500, color: COLORS.text }}>{p.title}</p><p style={{ margin: 0, fontSize: 12, color: COLORS.textMuted }}>{clientMap[p.client_id]?.name}</p></div>
+                <span style={{ background: COLORS.warningLight, color: COLORS.warning, fontSize: 12, padding: "3px 8px", borderRadius: 6 }}>{daysLeft(p.due_date) === 0 ? "Hoy" : `${daysLeft(p.due_date)}d`}</span>
               </div>
-              <span style={{ background: COLORS.warningLight, color: COLORS.warning, fontSize: 12, padding: "3px 8px", borderRadius: 6 }}>
-                {daysLeft(p.due_date) === 0 ? "Hoy" : `${daysLeft(p.due_date)}d`}
-              </span>
-            </div>
-          ))}
+            ))}
         </div>
       </div>
     </div>
   );
 }
 
-// ─── CLIENTS ──────────────────────────────────────────────────────────────────
+// ─── CALENDAR VIEW ────────────────────────────────────────────────────────────
+function CalendarView({ processes, clients }) {
+  const [viewDate, setViewDate] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
+  const [selected, setSelected] = useState(null);
+  const clientMap = Object.fromEntries(clients.map(c => [c.id, c]));
+  const year = viewDate.getFullYear();
+  const month = viewDate.getMonth();
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const processesThisMonth = processes.filter(p => { const d = new Date(p.due_date); return d.getFullYear() === year && d.getMonth() === month; });
+  const byDay = {};
+  processesThisMonth.forEach(p => { const day = new Date(p.due_date).getDate(); if (!byDay[day]) byDay[day] = []; byDay[day].push(p); });
+  const getDotColor = (procs) => {
+    if (procs.some(p => p.status !== "completado" && new Date(p.due_date) < today)) return COLORS.danger;
+    if (procs.some(p => p.status === "completado")) return COLORS.accent;
+    return COLORS.warning;
+  };
+  const days = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+
+  return (
+    <div>
+      <h2 style={{ fontSize: 22, fontWeight: 600, color: COLORS.text, margin: "0 0 24px", fontFamily: "'Georgia', serif" }}>Calendario de vencimientos</h2>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 20 }}>
+        <div style={{ background: COLORS.white, borderRadius: 12, border: `1px solid ${COLORS.border}`, overflow: "hidden" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px", borderBottom: `1px solid ${COLORS.border}` }}>
+            <button onClick={() => setViewDate(new Date(year, month - 1, 1))} style={{ background: "none", border: `1px solid ${COLORS.border}`, borderRadius: 8, padding: "6px 10px", cursor: "pointer", color: COLORS.gray }}><Icon name="chevronLeft" size={16} /></button>
+            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: COLORS.text }}>{MONTHS[month]} {year}</h3>
+            <button onClick={() => setViewDate(new Date(year, month + 1, 1))} style={{ background: "none", border: `1px solid ${COLORS.border}`, borderRadius: 8, padding: "6px 10px", cursor: "pointer", color: COLORS.gray }}><Icon name="chevronRight" size={16} /></button>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", borderBottom: `1px solid ${COLORS.border}` }}>
+            {days.map(d => <div key={d} style={{ padding: "10px 0", textAlign: "center", fontSize: 12, fontWeight: 600, color: COLORS.textMuted }}>{d}</div>)}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)" }}>
+            {Array.from({ length: firstDay }).map((_, i) => <div key={`e${i}`} style={{ minHeight: 70, borderRight: `1px solid ${COLORS.border}`, borderBottom: `1px solid ${COLORS.border}` }} />)}
+            {Array.from({ length: daysInMonth }).map((_, i) => {
+              const day = i + 1;
+              const dayProcs = byDay[day] || [];
+              const isToday = day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
+              return (
+                <div key={day} onClick={() => setSelected(dayProcs.length > 0 ? day : null)} style={{ padding: "6px", minHeight: 70, borderRight: `1px solid ${COLORS.border}`, borderBottom: `1px solid ${COLORS.border}`, cursor: dayProcs.length > 0 ? "pointer" : "default", background: selected === day ? COLORS.primary + "08" : "none" }}>
+                  <div style={{ width: 24, height: 24, borderRadius: "50%", background: isToday ? COLORS.primary : "none", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 3 }}>
+                    <span style={{ fontSize: 12, fontWeight: isToday ? 600 : 400, color: isToday ? "#fff" : COLORS.text }}>{day}</span>
+                  </div>
+                  {dayProcs.slice(0, 2).map(p => (
+                    <div key={p.id} style={{ fontSize: 10, padding: "1px 4px", borderRadius: 3, marginBottom: 1, background: getDotColor([p]) + "20", color: getDotColor([p]), overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.title}</div>
+                  ))}
+                  {dayProcs.length > 2 && <div style={{ fontSize: 10, color: COLORS.textMuted }}>+{dayProcs.length - 2}</div>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        <div style={{ background: COLORS.white, borderRadius: 12, border: `1px solid ${COLORS.border}`, overflow: "hidden", height: "fit-content" }}>
+          <div style={{ padding: "16px 20px", borderBottom: `1px solid ${COLORS.border}` }}>
+            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: COLORS.text }}>{selected ? `${selected} de ${MONTHS[month]}` : "Resumen del mes"}</h3>
+          </div>
+          <div style={{ padding: "16px 20px" }}>
+            {!selected ? (
+              [["Total", processesThisMonth.length, COLORS.primary], ["Pendientes", processesThisMonth.filter(p => p.status === "pendiente").length, COLORS.warning], ["En proceso", processesThisMonth.filter(p => p.status === "en_proceso").length, "#185FA5"], ["Completados", processesThisMonth.filter(p => p.status === "completado").length, COLORS.accent]].map(([k, v, c]) => (
+                <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: `1px solid ${COLORS.border}` }}>
+                  <span style={{ fontSize: 13, color: COLORS.textMuted }}>{k}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: c }}>{v}</span>
+                </div>
+              ))
+            ) : (byDay[selected] || []).map(p => (
+              <div key={p.id} style={{ marginBottom: 10, padding: 10, background: COLORS.bg, borderRadius: 8, borderLeft: `3px solid ${getDotColor([p])}` }}>
+                <p style={{ margin: "0 0 3px", fontSize: 13, fontWeight: 500, color: COLORS.text }}>{p.title}</p>
+                <p style={{ margin: "0 0 6px", fontSize: 12, color: COLORS.textMuted }}>{clientMap[p.client_id]?.name}</p>
+                <Badge status={p.status} />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: 16, marginTop: 14, flexWrap: "wrap" }}>
+        {[["Atrasado", COLORS.danger], ["Pendiente/En proceso", COLORS.warning], ["Completado", COLORS.accent]].map(([label, color]) => (
+          <div key={label} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <div style={{ width: 12, height: 12, borderRadius: 3, background: color + "40", border: `1px solid ${color}` }} />
+            <span style={{ fontSize: 12, color: COLORS.textMuted }}>{label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── REPORTS VIEW ─────────────────────────────────────────────────────────────
+function ReportsView({ clients, processes, profile }) {
+  const [reportMonth, setReportMonth] = useState(today.getMonth());
+  const [reportYear, setReportYear] = useState(today.getFullYear());
+  const processesInMonth = processes.filter(p => { const d = new Date(p.due_date); return d.getMonth() === reportMonth && d.getFullYear() === reportYear; });
+  const years = [today.getFullYear() - 1, today.getFullYear(), today.getFullYear() + 1];
+
+  return (
+    <div>
+      <h2 style={{ fontSize: 22, fontWeight: 600, color: COLORS.text, margin: "0 0 24px", fontFamily: "'Georgia', serif" }}>Reportes</h2>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+        <div style={{ background: COLORS.white, borderRadius: 12, border: `1px solid ${COLORS.border}`, padding: 24 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+            <div style={{ width: 44, height: 44, borderRadius: 10, background: COLORS.primary + "18", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="clients" size={20} color={COLORS.primary} /></div>
+            <div><h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: COLORS.text }}>Lista de clientes</h3><p style={{ margin: 0, fontSize: 13, color: COLORS.textMuted }}>{clients.length} clientes registrados</p></div>
+          </div>
+          <div style={{ background: COLORS.bg, borderRadius: 8, padding: 12, marginBottom: 16 }}>
+            {[["Activos", clients.filter(c => c.status === "activo").length], ["Inactivos", clients.filter(c => c.status === "inactivo").length], ["Persona física", clients.filter(c => c.type === "fisica").length], ["Persona moral", clients.filter(c => c.type === "moral").length]].map(([k, v]) => (
+              <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: `1px solid ${COLORS.border}` }}>
+                <span style={{ fontSize: 13, color: COLORS.textMuted }}>{k}</span><span style={{ fontSize: 13, fontWeight: 600, color: COLORS.text }}>{v}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: "flex", gap: 10 }}>
+            <button onClick={() => exportClientsPDF(clients, profile?.despacho)} style={{ ...btnPrimary, flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: 13 }}><Icon name="fileText" size={14} color="#fff" /> PDF</button>
+            <button onClick={() => exportClientsExcel(clients)} style={{ ...btnSecondary, flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: 13 }}><Icon name="table" size={14} color={COLORS.gray} /> Excel</button>
+          </div>
+        </div>
+        <div style={{ background: COLORS.white, borderRadius: 12, border: `1px solid ${COLORS.border}`, padding: 24 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+            <div style={{ width: 44, height: 44, borderRadius: 10, background: "#185FA518", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="processes" size={20} color="#185FA5" /></div>
+            <div><h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: COLORS.text }}>Procesos por mes</h3><p style={{ margin: 0, fontSize: 13, color: COLORS.textMuted }}>{processesInMonth.length} procesos en el período</p></div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
+            <FormField label="Mes">
+              <select style={inputStyle} value={reportMonth} onChange={e => setReportMonth(Number(e.target.value))}>
+                {MONTHS.map((m, i) => <option key={i} value={i}>{m}</option>)}
+              </select>
+            </FormField>
+            <FormField label="Año">
+              <select style={inputStyle} value={reportYear} onChange={e => setReportYear(Number(e.target.value))}>
+                {years.map(y => <option key={y} value={y}>{y}</option>)}
+              </select>
+            </FormField>
+          </div>
+          <div style={{ background: COLORS.bg, borderRadius: 8, padding: 12, marginBottom: 16 }}>
+            {[["Pendientes", processesInMonth.filter(p => p.status === "pendiente").length, COLORS.warning], ["En proceso", processesInMonth.filter(p => p.status === "en_proceso").length, "#185FA5"], ["Completados", processesInMonth.filter(p => p.status === "completado").length, COLORS.accent]].map(([k, v, c]) => (
+              <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: `1px solid ${COLORS.border}` }}>
+                <span style={{ fontSize: 13, color: COLORS.textMuted }}>{k}</span><span style={{ fontSize: 13, fontWeight: 600, color: c }}>{v}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: "flex", gap: 10 }}>
+            <button onClick={() => exportProcessesPDF(processes, clients, profile?.despacho, reportMonth, reportYear)} style={{ ...btnPrimary, flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: 13 }}><Icon name="fileText" size={14} color="#fff" /> PDF</button>
+            <button onClick={() => exportProcessesExcel(processes, clients, reportMonth, reportYear)} style={{ ...btnSecondary, flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: 13 }}><Icon name="table" size={14} color={COLORS.gray} /> Excel</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── CLIENTS VIEW ─────────────────────────────────────────────────────────────
 function ClientsView({ clients, setClients, processes, userId }) {
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState("all");
@@ -346,33 +490,19 @@ function ClientsView({ clients, setClients, processes, userId }) {
   const filtered = useMemo(() => clients.filter(c => {
     const q = search.toLowerCase();
     return (c.name.toLowerCase().includes(q) || c.rfc?.toLowerCase().includes(q) || c.email?.toLowerCase().includes(q))
-      && (filterType === "all" || c.type === filterType)
-      && (filterStatus === "all" || c.status === filterStatus);
+      && (filterType === "all" || c.type === filterType) && (filterStatus === "all" || c.status === filterStatus);
   }), [clients, search, filterType, filterStatus]);
 
   const openAdd = () => { setEditing(null); setForm({ name: "", rfc: "", email: "", phone: "", type: "fisica", status: "activo" }); setShowModal(true); };
-  const openEdit = (c) => { setEditing(c); setForm({ name: c.name, rfc: c.rfc || "", email: c.email, phone: c.phone || "", type: c.type, status: c.status }); setShowModal(true); };
-
+  const openEdit = c => { setEditing(c); setForm({ name: c.name, rfc: c.rfc || "", email: c.email, phone: c.phone || "", type: c.type, status: c.status }); setShowModal(true); };
   const save = async () => {
     if (!form.name || !form.email) return;
     setSaving(true);
-    if (editing) {
-      const { data } = await supabase.from("clients").update({ ...form }).eq("id", editing.id).select().single();
-      setClients(prev => prev.map(c => c.id === editing.id ? data : c));
-    } else {
-      const { data } = await supabase.from("clients").insert({ ...form, user_id: userId }).select().single();
-      setClients(prev => [...prev, data]);
-    }
-    setSaving(false);
-    setShowModal(false);
+    if (editing) { const { data } = await supabase.from("clients").update({ ...form }).eq("id", editing.id).select().single(); setClients(prev => prev.map(c => c.id === editing.id ? data : c)); }
+    else { const { data } = await supabase.from("clients").insert({ ...form, user_id: userId }).select().single(); setClients(prev => [...prev, data]); }
+    setSaving(false); setShowModal(false);
   };
-
-  const remove = async (id) => {
-    await supabase.from("clients").delete().eq("id", id);
-    setClients(prev => prev.filter(c => c.id !== id));
-  };
-
-  const clientProcesses = (id) => processes.filter(p => p.client_id === id);
+  const remove = async id => { await supabase.from("clients").delete().eq("id", id); setClients(prev => prev.filter(c => c.id !== id)); };
 
   return (
     <div>
@@ -385,53 +515,26 @@ function ClientsView({ clients, setClients, processes, userId }) {
           <Icon name="search" size={15} color={COLORS.textMuted} />
           <input style={{ border: "none", background: "none", outline: "none", fontSize: 14, color: COLORS.text, width: "100%" }} placeholder="Buscar por nombre, RFC o correo..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <select style={{ ...inputStyle, width: "auto" }} value={filterType} onChange={e => setFilterType(e.target.value)}>
-          <option value="all">Todos los tipos</option>
-          <option value="fisica">Persona física</option>
-          <option value="moral">Persona moral</option>
-        </select>
-        <select style={{ ...inputStyle, width: "auto" }} value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
-          <option value="all">Todos los estados</option>
-          <option value="activo">Activo</option>
-          <option value="inactivo">Inactivo</option>
-        </select>
+        <select style={{ ...inputStyle, width: "auto" }} value={filterType} onChange={e => setFilterType(e.target.value)}><option value="all">Todos los tipos</option><option value="fisica">Persona física</option><option value="moral">Persona moral</option></select>
+        <select style={{ ...inputStyle, width: "auto" }} value={filterStatus} onChange={e => setFilterStatus(e.target.value)}><option value="all">Todos los estados</option><option value="activo">Activo</option><option value="inactivo">Inactivo</option></select>
       </div>
       <div style={{ background: COLORS.white, borderRadius: 12, border: `1px solid ${COLORS.border}`, overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr style={{ background: COLORS.bg }}>
-              {["Cliente", "RFC", "Contacto", "Tipo", "Estado", "Procesos", "Acciones"].map(h => (
-                <th key={h} style={{ padding: "12px 16px", textAlign: "left", fontSize: 12, fontWeight: 600, color: COLORS.textMuted, textTransform: "uppercase", letterSpacing: "0.5px", borderBottom: `1px solid ${COLORS.border}` }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
+          <thead><tr style={{ background: COLORS.bg }}>{["Cliente", "RFC", "Contacto", "Tipo", "Estado", "Procesos", "Acciones"].map(h => <th key={h} style={{ padding: "12px 16px", textAlign: "left", fontSize: 12, fontWeight: 600, color: COLORS.textMuted, textTransform: "uppercase", letterSpacing: "0.5px", borderBottom: `1px solid ${COLORS.border}` }}>{h}</th>)}</tr></thead>
           <tbody>
             {filtered.map((c, i) => (
               <tr key={c.id} style={{ borderBottom: i < filtered.length - 1 ? `1px solid ${COLORS.border}` : "none" }}>
                 <td style={{ padding: "14px 16px" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div style={{ width: 34, height: 34, borderRadius: "50%", background: COLORS.primary + "18", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 600, color: COLORS.primary, flexShrink: 0 }}>
-                      {c.name.split(" ").slice(0, 2).map(n => n[0]).join("")}
-                    </div>
+                    <div style={{ width: 34, height: 34, borderRadius: "50%", background: COLORS.primary + "18", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 600, color: COLORS.primary, flexShrink: 0 }}>{c.name.split(" ").slice(0, 2).map(n => n[0]).join("")}</div>
                     <span style={{ fontSize: 14, fontWeight: 500, color: COLORS.text }}>{c.name}</span>
                   </div>
                 </td>
                 <td style={{ padding: "14px 16px", fontSize: 13, color: COLORS.textMuted, fontFamily: "monospace" }}>{c.rfc || "—"}</td>
-                <td style={{ padding: "14px 16px" }}>
-                  <p style={{ margin: "0 0 2px", fontSize: 13, color: COLORS.text }}>{c.email}</p>
-                  <p style={{ margin: 0, fontSize: 12, color: COLORS.textMuted }}>{c.phone}</p>
-                </td>
-                <td style={{ padding: "14px 16px" }}>
-                  <span style={{ background: c.type === "moral" ? "#E6F1FB" : COLORS.accentLight, color: c.type === "moral" ? "#185FA5" : "#0F6E56", fontSize: 12, padding: "3px 10px", borderRadius: 20, fontWeight: 500 }}>
-                    {c.type === "fisica" ? "Física" : "Moral"}
-                  </span>
-                </td>
-                <td style={{ padding: "14px 16px" }}>
-                  <span style={{ background: c.status === "activo" ? COLORS.accentLight : COLORS.grayLight, color: c.status === "activo" ? "#0F6E56" : COLORS.gray, fontSize: 12, padding: "3px 10px", borderRadius: 20, fontWeight: 500 }}>
-                    {c.status === "activo" ? "Activo" : "Inactivo"}
-                  </span>
-                </td>
-                <td style={{ padding: "14px 16px", fontSize: 13, color: COLORS.textMuted }}>{clientProcesses(c.id).length}</td>
+                <td style={{ padding: "14px 16px" }}><p style={{ margin: "0 0 2px", fontSize: 13, color: COLORS.text }}>{c.email}</p><p style={{ margin: 0, fontSize: 12, color: COLORS.textMuted }}>{c.phone}</p></td>
+                <td style={{ padding: "14px 16px" }}><span style={{ background: c.type === "moral" ? "#E6F1FB" : COLORS.accentLight, color: c.type === "moral" ? "#185FA5" : "#0F6E56", fontSize: 12, padding: "3px 10px", borderRadius: 20, fontWeight: 500 }}>{c.type === "fisica" ? "Física" : "Moral"}</span></td>
+                <td style={{ padding: "14px 16px" }}><span style={{ background: c.status === "activo" ? COLORS.accentLight : COLORS.grayLight, color: c.status === "activo" ? "#0F6E56" : COLORS.gray, fontSize: 12, padding: "3px 10px", borderRadius: 20, fontWeight: 500 }}>{c.status === "activo" ? "Activo" : "Inactivo"}</span></td>
+                <td style={{ padding: "14px 16px", fontSize: 13, color: COLORS.textMuted }}>{processes.filter(p => p.client_id === c.id).length}</td>
                 <td style={{ padding: "14px 16px" }}>
                   <div style={{ display: "flex", gap: 6 }}>
                     <button onClick={() => setViewClient(c)} style={{ background: "none", border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "5px 8px", cursor: "pointer", color: COLORS.textMuted }}><Icon name="user" size={14} /></button>
@@ -445,36 +548,17 @@ function ClientsView({ clients, setClients, processes, userId }) {
           </tbody>
         </table>
       </div>
-
       {showModal && (
         <Modal title={editing ? "Editar cliente" : "Nuevo cliente"} onClose={() => setShowModal(false)}>
-          <FormField label="Nombre completo" required>
-            <input style={inputStyle} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Nombre completo o razón social" />
-          </FormField>
-          <FormField label="RFC">
-            <input style={{ ...inputStyle, fontFamily: "monospace" }} value={form.rfc} onChange={e => setForm(f => ({ ...f, rfc: e.target.value.toUpperCase() }))} placeholder="RFC opcional" />
-          </FormField>
+          <FormField label="Nombre completo" required><input style={inputStyle} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Nombre completo o razón social" /></FormField>
+          <FormField label="RFC"><input style={{ ...inputStyle, fontFamily: "monospace" }} value={form.rfc} onChange={e => setForm(f => ({ ...f, rfc: e.target.value.toUpperCase() }))} placeholder="RFC opcional" /></FormField>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <FormField label="Correo electrónico" required>
-              <input style={inputStyle} type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
-            </FormField>
-            <FormField label="Teléfono">
-              <input style={inputStyle} value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} />
-            </FormField>
+            <FormField label="Correo electrónico" required><input style={inputStyle} type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} /></FormField>
+            <FormField label="Teléfono"><input style={inputStyle} value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} /></FormField>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <FormField label="Tipo de cliente">
-              <select style={inputStyle} value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}>
-                <option value="fisica">Persona física</option>
-                <option value="moral">Persona moral</option>
-              </select>
-            </FormField>
-            <FormField label="Estado">
-              <select style={inputStyle} value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
-                <option value="activo">Activo</option>
-                <option value="inactivo">Inactivo</option>
-              </select>
-            </FormField>
+            <FormField label="Tipo"><select style={inputStyle} value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}><option value="fisica">Persona física</option><option value="moral">Persona moral</option></select></FormField>
+            <FormField label="Estado"><select style={inputStyle} value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}><option value="activo">Activo</option><option value="inactivo">Inactivo</option></select></FormField>
           </div>
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
             <button onClick={() => setShowModal(false)} style={btnSecondary}>Cancelar</button>
@@ -482,43 +566,22 @@ function ClientsView({ clients, setClients, processes, userId }) {
           </div>
         </Modal>
       )}
-
       {viewClient && (
         <Modal title="Perfil del cliente" onClose={() => setViewClient(null)}>
           <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 20 }}>
-            <div style={{ width: 52, height: 52, borderRadius: "50%", background: COLORS.primary + "18", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 700, color: COLORS.primary }}>
-              {viewClient.name.split(" ").slice(0, 2).map(n => n[0]).join("")}
-            </div>
-            <div>
-              <p style={{ margin: "0 0 4px", fontSize: 17, fontWeight: 600, color: COLORS.text }}>{viewClient.name}</p>
-              <span style={{ background: viewClient.type === "moral" ? "#E6F1FB" : COLORS.accentLight, color: viewClient.type === "moral" ? "#185FA5" : "#0F6E56", fontSize: 12, padding: "2px 10px", borderRadius: 20 }}>
-                {viewClient.type === "fisica" ? "Persona Física" : "Persona Moral"}
-              </span>
-            </div>
+            <div style={{ width: 52, height: 52, borderRadius: "50%", background: COLORS.primary + "18", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 700, color: COLORS.primary }}>{viewClient.name.split(" ").slice(0, 2).map(n => n[0]).join("")}</div>
+            <div><p style={{ margin: "0 0 4px", fontSize: 17, fontWeight: 600, color: COLORS.text }}>{viewClient.name}</p><span style={{ background: viewClient.type === "moral" ? "#E6F1FB" : COLORS.accentLight, color: viewClient.type === "moral" ? "#185FA5" : "#0F6E56", fontSize: 12, padding: "2px 10px", borderRadius: 20 }}>{viewClient.type === "fisica" ? "Persona Física" : "Persona Moral"}</span></div>
           </div>
           {[["RFC", viewClient.rfc || "No registrado"], ["Correo", viewClient.email], ["Teléfono", viewClient.phone || "—"], ["Estado", viewClient.status === "activo" ? "Activo" : "Inactivo"]].map(([k, v]) => (
-            <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: `1px solid ${COLORS.border}` }}>
-              <span style={{ fontSize: 13, color: COLORS.textMuted }}>{k}</span>
-              <span style={{ fontSize: 13, fontWeight: 500, color: COLORS.text }}>{v}</span>
-            </div>
+            <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: `1px solid ${COLORS.border}` }}><span style={{ fontSize: 13, color: COLORS.textMuted }}>{k}</span><span style={{ fontSize: 13, fontWeight: 500, color: COLORS.text }}>{v}</span></div>
           ))}
-          <div style={{ marginTop: 20 }}>
-            <p style={{ fontSize: 13, fontWeight: 600, color: COLORS.text, marginBottom: 10 }}>Procesos ({clientProcesses(viewClient.id).length})</p>
-            {clientProcesses(viewClient.id).slice(0, 4).map(p => (
-              <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: `1px solid ${COLORS.border}` }}>
-                <span style={{ fontSize: 13, color: COLORS.text }}>{p.title}</span>
-                <Badge status={p.status} />
-              </div>
-            ))}
-            {clientProcesses(viewClient.id).length === 0 && <p style={{ fontSize: 13, color: COLORS.textMuted }}>Sin procesos registrados</p>}
-          </div>
         </Modal>
       )}
     </div>
   );
 }
 
-// ─── PROCESSES ────────────────────────────────────────────────────────────────
+// ─── PROCESSES VIEW ───────────────────────────────────────────────────────────
 function ProcessesView({ processes, setProcesses, clients, userId }) {
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
@@ -529,44 +592,24 @@ function ProcessesView({ processes, setProcesses, clients, userId }) {
   const emptyForm = { client_id: clients[0]?.id || "", type: "declaracion_mensual", title: "", start_date: fmt(today), due_date: "", status: "pendiente", notes: "", reminder: 3 };
   const [form, setForm] = useState(emptyForm);
   const clientMap = Object.fromEntries(clients.map(c => [c.id, c]));
-
   const filtered = useMemo(() => processes.filter(p => {
-    const q = search.toLowerCase();
-    const client = clientMap[p.client_id];
-    return (p.title.toLowerCase().includes(q) || client?.name.toLowerCase().includes(q))
-      && (filterStatus === "all" || p.status === filterStatus)
-      && (filterType === "all" || p.type === filterType);
+    const q = search.toLowerCase(); const client = clientMap[p.client_id];
+    return (p.title.toLowerCase().includes(q) || client?.name.toLowerCase().includes(q)) && (filterStatus === "all" || p.status === filterStatus) && (filterType === "all" || p.type === filterType);
   }), [processes, search, filterStatus, filterType]);
 
   const openAdd = () => { setEditing(null); setForm({ ...emptyForm, client_id: clients[0]?.id || "" }); setShowModal(true); };
-  const openEdit = (p) => { setEditing(p); setForm({ client_id: p.client_id, type: p.type, title: p.title, start_date: p.start_date, due_date: p.due_date, status: p.status, notes: p.notes || "", reminder: p.reminder || 3 }); setShowModal(true); };
-
+  const openEdit = p => { setEditing(p); setForm({ client_id: p.client_id, type: p.type, title: p.title, start_date: p.start_date, due_date: p.due_date, status: p.status, notes: p.notes || "", reminder: p.reminder || 3 }); setShowModal(true); };
   const save = async () => {
     if (!form.title || !form.client_id || !form.due_date) return;
     setSaving(true);
     const payload = { ...form, client_id: Number(form.client_id), user_id: userId };
-    if (editing) {
-      const { data } = await supabase.from("processes").update(payload).eq("id", editing.id).select().single();
-      setProcesses(prev => prev.map(p => p.id === editing.id ? data : p));
-    } else {
-      const { data } = await supabase.from("processes").insert(payload).select().single();
-      setProcesses(prev => [...prev, data]);
-    }
-    setSaving(false);
-    setShowModal(false);
+    if (editing) { const { data } = await supabase.from("processes").update(payload).eq("id", editing.id).select().single(); setProcesses(prev => prev.map(p => p.id === editing.id ? data : p)); }
+    else { const { data } = await supabase.from("processes").insert(payload).select().single(); setProcesses(prev => [...prev, data]); }
+    setSaving(false); setShowModal(false);
   };
-
-  const remove = async (id) => {
-    await supabase.from("processes").delete().eq("id", id);
-    setProcesses(prev => prev.filter(p => p.id !== id));
-  };
-
-  const updateStatus = async (id, status) => {
-    await supabase.from("processes").update({ status }).eq("id", id);
-    setProcesses(prev => prev.map(p => p.id === id ? { ...p, status } : p));
-  };
-
-  const daysLeft = (d) => Math.ceil((new Date(d) - new Date()) / 86400000);
+  const remove = async id => { await supabase.from("processes").delete().eq("id", id); setProcesses(prev => prev.filter(p => p.id !== id)); };
+  const updateStatus = async (id, status) => { await supabase.from("processes").update({ status }).eq("id", id); setProcesses(prev => prev.map(p => p.id === id ? { ...p, status } : p)); };
+  const daysLeft = d => Math.ceil((new Date(d) - new Date()) / 86400000);
 
   return (
     <div>
@@ -579,22 +622,12 @@ function ProcessesView({ processes, setProcesses, clients, userId }) {
           <Icon name="search" size={15} color={COLORS.textMuted} />
           <input style={{ border: "none", background: "none", outline: "none", fontSize: 14, color: COLORS.text, width: "100%" }} placeholder="Buscar procesos o clientes..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <select style={{ ...inputStyle, width: "auto" }} value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
-          <option value="all">Todos los estados</option>
-          <option value="pendiente">Pendiente</option>
-          <option value="en_proceso">En proceso</option>
-          <option value="completado">Completado</option>
-        </select>
-        <select style={{ ...inputStyle, width: "auto" }} value={filterType} onChange={e => setFilterType(e.target.value)}>
-          <option value="all">Todos los tipos</option>
-          {Object.entries(PROCESS_TYPES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-        </select>
+        <select style={{ ...inputStyle, width: "auto" }} value={filterStatus} onChange={e => setFilterStatus(e.target.value)}><option value="all">Todos los estados</option><option value="pendiente">Pendiente</option><option value="en_proceso">En proceso</option><option value="completado">Completado</option></select>
+        <select style={{ ...inputStyle, width: "auto" }} value={filterType} onChange={e => setFilterType(e.target.value)}><option value="all">Todos los tipos</option>{Object.entries(PROCESS_TYPES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
       </div>
       <div style={{ background: COLORS.white, borderRadius: 12, border: `1px solid ${COLORS.border}`, overflow: "hidden" }}>
         {filtered.map((p, i) => {
-          const client = clientMap[p.client_id];
-          const dl = daysLeft(p.due_date);
-          const isOverdue = dl < 0 && p.status !== "completado";
+          const client = clientMap[p.client_id]; const dl = daysLeft(p.due_date); const isOverdue = dl < 0 && p.status !== "completado";
           return (
             <div key={p.id} style={{ padding: "16px 20px", borderBottom: i < filtered.length - 1 ? `1px solid ${COLORS.border}` : "none", display: "flex", alignItems: "center", gap: 16 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -611,11 +644,7 @@ function ProcessesView({ processes, setProcesses, clients, userId }) {
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
                 <Badge status={p.status} />
-                <select value={p.status} onChange={e => updateStatus(p.id, e.target.value)} style={{ ...inputStyle, width: "auto", fontSize: 13, padding: "6px 10px" }}>
-                  <option value="pendiente">Pendiente</option>
-                  <option value="en_proceso">En proceso</option>
-                  <option value="completado">Completado</option>
-                </select>
+                <select value={p.status} onChange={e => updateStatus(p.id, e.target.value)} style={{ ...inputStyle, width: "auto", fontSize: 13, padding: "6px 10px" }}><option value="pendiente">Pendiente</option><option value="en_proceso">En proceso</option><option value="completado">Completado</option></select>
                 <button onClick={() => openEdit(p)} style={{ background: "none", border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "5px 8px", cursor: "pointer", color: COLORS.textMuted }}><Icon name="edit" size={14} /></button>
                 <button onClick={() => remove(p.id)} style={{ background: "none", border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "5px 8px", cursor: "pointer", color: COLORS.danger }}><Icon name="trash" size={14} /></button>
               </div>
@@ -624,45 +653,20 @@ function ProcessesView({ processes, setProcesses, clients, userId }) {
         })}
         {filtered.length === 0 && <p style={{ padding: "40px", textAlign: "center", color: COLORS.textMuted, fontSize: 14 }}>Sin procesos registrados</p>}
       </div>
-
       {showModal && (
         <Modal title={editing ? "Editar proceso" : "Nuevo proceso"} onClose={() => setShowModal(false)}>
-          <FormField label="Cliente" required>
-            <select style={inputStyle} value={form.client_id} onChange={e => setForm(f => ({ ...f, client_id: e.target.value }))}>
-              {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </FormField>
-          <FormField label="Tipo de trámite">
-            <select style={inputStyle} value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}>
-              {Object.entries(PROCESS_TYPES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-            </select>
-          </FormField>
-          <FormField label="Descripción / Título" required>
-            <input style={inputStyle} value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Ej: Declaración mensual IVA - Abril 2025" />
-          </FormField>
+          <FormField label="Cliente" required><select style={inputStyle} value={form.client_id} onChange={e => setForm(f => ({ ...f, client_id: e.target.value }))}>{clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></FormField>
+          <FormField label="Tipo de trámite"><select style={inputStyle} value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}>{Object.entries(PROCESS_TYPES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></FormField>
+          <FormField label="Título" required><input style={inputStyle} value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Ej: Declaración mensual IVA - Abril" /></FormField>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <FormField label="Fecha de inicio">
-              <input style={inputStyle} type="date" value={form.start_date} onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))} />
-            </FormField>
-            <FormField label="Fecha límite" required>
-              <input style={inputStyle} type="date" value={form.due_date} onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))} />
-            </FormField>
+            <FormField label="Fecha de inicio"><input style={inputStyle} type="date" value={form.start_date} onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))} /></FormField>
+            <FormField label="Fecha límite" required><input style={inputStyle} type="date" value={form.due_date} onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))} /></FormField>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <FormField label="Estado">
-              <select style={inputStyle} value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
-                <option value="pendiente">Pendiente</option>
-                <option value="en_proceso">En proceso</option>
-                <option value="completado">Completado</option>
-              </select>
-            </FormField>
-            <FormField label="Recordatorio (días antes)">
-              <input style={inputStyle} type="number" min="1" max="30" value={form.reminder} onChange={e => setForm(f => ({ ...f, reminder: Number(e.target.value) }))} />
-            </FormField>
+            <FormField label="Estado"><select style={inputStyle} value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}><option value="pendiente">Pendiente</option><option value="en_proceso">En proceso</option><option value="completado">Completado</option></select></FormField>
+            <FormField label="Recordatorio (días antes)"><input style={inputStyle} type="number" min="1" max="30" value={form.reminder} onChange={e => setForm(f => ({ ...f, reminder: Number(e.target.value) }))} /></FormField>
           </div>
-          <FormField label="Notas adicionales">
-            <textarea style={{ ...inputStyle, height: 80, resize: "vertical" }} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Observaciones o instrucciones..." />
-          </FormField>
+          <FormField label="Notas"><textarea style={{ ...inputStyle, height: 80, resize: "vertical" }} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} /></FormField>
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
             <button onClick={() => setShowModal(false)} style={btnSecondary}>Cancelar</button>
             <button onClick={save} disabled={saving} style={{ ...btnPrimary, opacity: saving ? 0.7 : 1 }}>{saving ? "Guardando..." : "Guardar"}</button>
@@ -673,95 +677,59 @@ function ProcessesView({ processes, setProcesses, clients, userId }) {
   );
 }
 
-// ─── REMINDERS ────────────────────────────────────────────────────────────────
+// ─── REMINDERS VIEW ───────────────────────────────────────────────────────────
 function RemindersView({ processes, clients }) {
   const clientMap = Object.fromEntries(clients.map(c => [c.id, c]));
   const now = new Date();
-  const upcoming = processes
-    .filter(p => p.status !== "completado")
-    .map(p => {
-      const due = new Date(p.due_date);
-      const daysLeft = Math.ceil((due - now) / 86400000);
-      const reminderDate = new Date(due);
-      reminderDate.setDate(reminderDate.getDate() - (p.reminder || 3));
-      return { ...p, daysLeft, reminderDate };
-    })
-    .filter(p => p.daysLeft >= -7 && p.daysLeft <= 30)
-    .sort((a, b) => a.daysLeft - b.daysLeft);
-
+  const upcoming = processes.filter(p => p.status !== "completado").map(p => ({ ...p, daysLeft: Math.ceil((new Date(p.due_date) - now) / 86400000) })).filter(p => p.daysLeft >= -7 && p.daysLeft <= 30).sort((a, b) => a.daysLeft - b.daysLeft);
   return (
     <div>
       <h2 style={{ fontSize: 22, fontWeight: 600, color: COLORS.text, margin: "0 0 24px", fontFamily: "'Georgia', serif" }}>Recordatorios</h2>
       <div style={{ background: COLORS.white, borderRadius: 12, border: `1px solid ${COLORS.border}`, overflow: "hidden" }}>
-        <div style={{ padding: "16px 20px", borderBottom: `1px solid ${COLORS.border}` }}>
-          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: COLORS.text }}>Próximos recordatorios</h3>
-          <p style={{ margin: "4px 0 0", fontSize: 13, color: COLORS.textMuted }}>Procesos que vencen en los próximos 30 días</p>
-        </div>
-        {upcoming.length === 0 ? (
-          <p style={{ padding: "40px", textAlign: "center", color: COLORS.textMuted }}>Sin recordatorios próximos</p>
-        ) : upcoming.map((p, i) => {
-          const isOverdue = p.daysLeft < 0;
-          const isUrgent = p.daysLeft >= 0 && p.daysLeft <= 3;
-          return (
-            <div key={p.id} style={{ padding: "14px 20px", borderBottom: i < upcoming.length - 1 ? `1px solid ${COLORS.border}` : "none", background: isOverdue ? COLORS.dangerLight : isUrgent ? COLORS.warningLight : COLORS.white, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-                <div style={{ width: 36, height: 36, borderRadius: 8, background: isOverdue ? COLORS.danger + "20" : isUrgent ? COLORS.warning + "20" : COLORS.primary + "15", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <Icon name={isOverdue ? "alert" : "clock"} size={17} color={isOverdue ? COLORS.danger : isUrgent ? COLORS.warning : COLORS.primary} />
+        <div style={{ padding: "16px 20px", borderBottom: `1px solid ${COLORS.border}` }}><h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: COLORS.text }}>Próximos 30 días</h3></div>
+        {upcoming.length === 0 ? <p style={{ padding: "40px", textAlign: "center", color: COLORS.textMuted }}>Sin recordatorios próximos</p>
+          : upcoming.map((p, i) => {
+            const isOverdue = p.daysLeft < 0; const isUrgent = p.daysLeft >= 0 && p.daysLeft <= 3;
+            return (
+              <div key={p.id} style={{ padding: "14px 20px", borderBottom: i < upcoming.length - 1 ? `1px solid ${COLORS.border}` : "none", background: isOverdue ? COLORS.dangerLight : isUrgent ? COLORS.warningLight : COLORS.white, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ display: "flex", gap: 12 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 8, background: (isOverdue ? COLORS.danger : isUrgent ? COLORS.warning : COLORS.primary) + "20", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <Icon name={isOverdue ? "alert" : "clock"} size={17} color={isOverdue ? COLORS.danger : isUrgent ? COLORS.warning : COLORS.primary} />
+                  </div>
+                  <div>
+                    <p style={{ margin: "0 0 2px", fontSize: 14, fontWeight: 500, color: COLORS.text }}>{p.title}</p>
+                    <p style={{ margin: 0, fontSize: 12, color: COLORS.textMuted }}>{clientMap[p.client_id]?.name} · {PROCESS_TYPES[p.type]} · {p.reminder || 3}d antes</p>
+                  </div>
                 </div>
-                <div>
-                  <p style={{ margin: "0 0 2px", fontSize: 14, fontWeight: 500, color: COLORS.text }}>{p.title}</p>
-                  <p style={{ margin: "0 0 3px", fontSize: 12, color: COLORS.textMuted }}>{clientMap[p.client_id]?.name} · {PROCESS_TYPES[p.type]}</p>
-                  <p style={{ margin: 0, fontSize: 12, color: COLORS.textMuted }}>Recordatorio configurado: {p.reminder || 3} días antes</p>
+                <div style={{ textAlign: "right", flexShrink: 0 }}>
+                  <p style={{ margin: "0 0 4px", fontSize: 13, color: COLORS.textMuted }}>Vence: {p.due_date}</p>
+                  <span style={{ background: isOverdue ? COLORS.danger : isUrgent ? COLORS.warning : COLORS.primary, color: "#fff", fontSize: 12, padding: "3px 10px", borderRadius: 20, fontWeight: 500 }}>{isOverdue ? `${Math.abs(p.daysLeft)}d atraso` : p.daysLeft === 0 ? "Hoy" : `${p.daysLeft}d`}</span>
                 </div>
               </div>
-              <div style={{ textAlign: "right", flexShrink: 0 }}>
-                <p style={{ margin: "0 0 4px", fontSize: 13, color: COLORS.textMuted }}>Vence: {p.due_date}</p>
-                <span style={{ background: isOverdue ? COLORS.danger : isUrgent ? COLORS.warning : COLORS.primary, color: "#fff", fontSize: 12, padding: "3px 10px", borderRadius: 20, fontWeight: 500 }}>
-                  {isOverdue ? `${Math.abs(p.daysLeft)}d atraso` : p.daysLeft === 0 ? "Hoy" : `${p.daysLeft}d`}
-                </span>
-              </div>
-            </div>
-          );
-        })}
+            );
+          })}
       </div>
     </div>
   );
 }
 
-// ─── HISTORY ──────────────────────────────────────────────────────────────────
+// ─── HISTORY VIEW ─────────────────────────────────────────────────────────────
 function HistoryView({ processes, clients }) {
   const clientMap = Object.fromEntries(clients.map(c => [c.id, c]));
   const [filterClient, setFilterClient] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
-  const sorted = [...processes]
-    .filter(p => (filterClient === "all" || p.client_id === Number(filterClient)) && (filterStatus === "all" || p.status === filterStatus))
-    .sort((a, b) => new Date(b.start_date) - new Date(a.start_date));
-
+  const sorted = [...processes].filter(p => (filterClient === "all" || p.client_id === Number(filterClient)) && (filterStatus === "all" || p.status === filterStatus)).sort((a, b) => new Date(b.start_date) - new Date(a.start_date));
   return (
     <div>
       <h2 style={{ fontSize: 22, fontWeight: 600, color: COLORS.text, margin: "0 0 24px", fontFamily: "'Georgia', serif" }}>Historial</h2>
       <div style={{ background: COLORS.white, borderRadius: 12, border: `1px solid ${COLORS.border}`, marginBottom: 20, padding: "14px 16px", display: "flex", gap: 12, flexWrap: "wrap" }}>
-        <select style={{ ...inputStyle, width: "auto" }} value={filterClient} onChange={e => setFilterClient(e.target.value)}>
-          <option value="all">Todos los clientes</option>
-          {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
-        <select style={{ ...inputStyle, width: "auto" }} value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
-          <option value="all">Todos los estados</option>
-          <option value="pendiente">Pendiente</option>
-          <option value="en_proceso">En proceso</option>
-          <option value="completado">Completado</option>
-        </select>
+        <select style={{ ...inputStyle, width: "auto" }} value={filterClient} onChange={e => setFilterClient(e.target.value)}><option value="all">Todos los clientes</option>{clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+        <select style={{ ...inputStyle, width: "auto" }} value={filterStatus} onChange={e => setFilterStatus(e.target.value)}><option value="all">Todos los estados</option><option value="pendiente">Pendiente</option><option value="en_proceso">En proceso</option><option value="completado">Completado</option></select>
         <span style={{ fontSize: 13, color: COLORS.textMuted, display: "flex", alignItems: "center" }}>{sorted.length} registros</span>
       </div>
       <div style={{ background: COLORS.white, borderRadius: 12, border: `1px solid ${COLORS.border}`, overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr style={{ background: COLORS.bg }}>
-              {["Proceso", "Cliente", "Tipo", "Inicio", "Vencimiento", "Estado", "Notas"].map(h => (
-                <th key={h} style={{ padding: "12px 16px", textAlign: "left", fontSize: 12, fontWeight: 600, color: COLORS.textMuted, textTransform: "uppercase", letterSpacing: "0.5px", borderBottom: `1px solid ${COLORS.border}` }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
+          <thead><tr style={{ background: COLORS.bg }}>{["Proceso", "Cliente", "Tipo", "Inicio", "Vencimiento", "Estado", "Notas"].map(h => <th key={h} style={{ padding: "12px 16px", textAlign: "left", fontSize: 12, fontWeight: 600, color: COLORS.textMuted, textTransform: "uppercase", letterSpacing: "0.5px", borderBottom: `1px solid ${COLORS.border}` }}>{h}</th>)}</tr></thead>
           <tbody>
             {sorted.map((p, i) => (
               <tr key={p.id} style={{ borderBottom: i < sorted.length - 1 ? `1px solid ${COLORS.border}` : "none", background: p.status === "completado" ? "#fafaf8" : COLORS.white }}>
@@ -791,13 +759,11 @@ export default function App() {
   const [processes, setProcesses] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Verificar sesión activa al cargar
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session) {
         const { data: prof } = await supabase.from("profiles").select("*").eq("id", session.user.id).single();
-        setUser(session.user);
-        setProfile(prof);
+        setUser(session.user); setProfile(prof);
       }
       setLoading(false);
     });
@@ -807,45 +773,38 @@ export default function App() {
     return () => listener.subscription.unsubscribe();
   }, []);
 
-  // Cargar datos cuando hay usuario
   useEffect(() => {
     if (!user) return;
-    const loadData = async () => {
+    const load = async () => {
       const [{ data: c }, { data: p }] = await Promise.all([
         supabase.from("clients").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
         supabase.from("processes").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
       ]);
-      setClients(c || []);
-      setProcesses(p || []);
+      setClients(c || []); setProcesses(p || []);
     };
-    loadData();
+    load();
   }, [user]);
 
   const handleAuth = (u, prof) => { setUser(u); setProfile(prof); };
   const handleLogout = async () => { await supabase.auth.signOut(); setUser(null); setProfile(null); };
 
-  if (loading) return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: COLORS.bg }}>
-      <Spinner />
-    </div>
-  );
-
+  if (loading) return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: COLORS.bg }}><Spinner /></div>;
   if (!user) return <AuthScreen onAuth={handleAuth} />;
 
   const views = {
-    dashboard: <DashboardView clients={clients} processes={processes} />,
+    dashboard: <DashboardView clients={clients} processes={processes} setActive={setActive} />,
     clients: <ClientsView clients={clients} setClients={setClients} processes={processes} userId={user.id} />,
     processes: <ProcessesView processes={processes} setProcesses={setProcesses} clients={clients} userId={user.id} />,
+    calendar: <CalendarView processes={processes} clients={clients} />,
     reminders: <RemindersView processes={processes} clients={clients} />,
+    reports: <ReportsView clients={clients} processes={processes} profile={profile} />,
     history: <HistoryView processes={processes} clients={clients} />,
   };
 
   return (
     <div style={{ display: "flex", minHeight: "100vh", fontFamily: "'Segoe UI', system-ui, sans-serif", background: COLORS.bg }}>
       <Sidebar active={active} setActive={setActive} profile={profile} onLogout={handleLogout} />
-      <div style={{ flex: 1, padding: 36, overflow: "auto" }}>
-        {views[active]}
-      </div>
+      <div style={{ flex: 1, padding: 36, overflow: "auto" }}>{views[active]}</div>
     </div>
   );
 }
