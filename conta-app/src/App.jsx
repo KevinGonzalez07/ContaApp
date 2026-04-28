@@ -5,8 +5,7 @@ import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 
 const supabase = createClient(
-  "https://ujuikoviyyyagxekszuz.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVqdWlrb3ZpeXl5YWd4ZWtzenV6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2Nzk3NzYsImV4cCI6MjA5MTI1NTc3Nn0.9ERmePJ7moJOKlb2OMRxv4irKp70zFcI9umfxWle8r4"
+  process.env.NEXT_PUBLIC_SUPABASE_URL, processLock.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 );
 
 const ThemeContext = createContext();
